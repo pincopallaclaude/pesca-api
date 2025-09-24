@@ -26,16 +26,20 @@ app.get('/', (req, res) => {
 app.get('/api/forecast', async (req, res) => {
     try {
         const location = req.query.location || '40.813238367880984,14.208944303204635';
-        const cacheKey = `forecast-data-v8-${location}`;
         
-        let cachedData = myCache.get(cacheKey);
-        if (!cachedData) {
-            console.log(`[Server] Cache miss for ${location}. Triggering fetch.`);
-            cachedData = await fetchAndProcessForecast(location);
-        } else {
-            console.log(`[Server] Serving from cache for ${location}.`);
+        // La logica di fetch è stata semplificata e resa più robusta
+        const forecastData = await fetchAndProcessForecast(location);
+
+        // --- BLOCCO DI DEBUG FINALE ---
+        // Questo try...catch isolerà qualsiasi problema che avviene SOLO
+        // quando il server tenta di convertire l'oggetto finale in una stringa JSON.
+        try {
+            res.json(forecastData);
+        } catch (stringifyError) {
+            console.error('[SERVER-FATAL] JSON.stringify FAILED:', stringifyError.message, stringifyError.stack);
+            res.status(500).json({ error: "Failed to serialize response." });
         }
-        res.status(200).json(cachedData);
+        
     } catch (error) {
         console.error("[Server Error] /api/forecast:", error.message, error.stack);
         res.status(500).json({ message: "An error occurred while getting forecast data.", error: error.message });
@@ -49,7 +53,8 @@ app.get('/api/update-cache', async (req, res) => {
     }
     try {
         const locationToUpdate = '40.813238367880984,14.208944303204635';
-        await fetchAndProcessForecast(locationToUpdate);
+        // fetchAndProcessForecast gestisce già il salvataggio in cache
+        await fetchAndProcessForecast(locationToUpdate); 
         return res.status(200).json({ status: 'ok' });
     } catch (error) {
         console.error("[CRON JOB] Error during update:", error.message);
@@ -58,10 +63,8 @@ app.get('/api/update-cache', async (req, res) => {
 });
 
 // Le due rotte che prima erano in file separati sono ora gestite direttamente qui per semplicità
-// in un contesto di singolo server.
 app.get('/api/autocomplete', autocompleteHandler);
 app.get('/api/reverse-geocode', reverseGeocodeHandler);
-
 
 // --- AVVIO DEL SERVER ---
 app.listen(PORT, () => {
