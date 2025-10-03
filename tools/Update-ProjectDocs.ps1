@@ -1,29 +1,29 @@
 ﻿# ==============================================================================
 #           SCRIPT DI AGGIORNAMENTO DOCUMENTAZIONE UNIFICATA
 #                     Progetto: Meteo Pesca
-# Versione: 2.3 (Fix definitivo per "Hashtable" nelle descrizioni)
+# Versione: 2.4 (Correzione definitiva alla ricorsione Node.js e prefissi)
 # ==============================================================================
 
 #region ------------------ CONFIGURAZIONE E DATI DI CONTESTO ------------------
-$startMarker = "<!-- SCRIPT:START -->"
-$endMarker = "<!-- SCRIPT:END -->"
+$startMarker = ""
+$endMarker = ""
 $ContextPrompt = @"
 ======================================================================
-     PROMPT DI CONTESTO: APPLICAZIONE METEO PESCA (REVISIONE CORRENTE)
+     PROMPT DI CONTESTO: APPLICAZIONE METEO PESCA (VERSIONE 5.1 - DEFINITIVA)
 ======================================================================
 
-Sei un ingelenere informatico full-stack senior, con profonda esperienza nello sviluppo di applicazioni mobile cross-platform con Flutter, architetture a microservizi su Node.js, e design di interfacce utente (UI/UX) moderne e performanti. Il tuo obiettivo è comprendere l'architettura esistente dell'app "Meteo Pesca" e fornire codice, soluzioni e consulenza per la sua manutenzione ed evoluzione, garantendo performance elevate e un'estetica "premium".
+Sei un ingegnere informatico full-stack senior, con profonda esperienza nello sviluppo di applicazioni mobile cross-platform con **Flutter/Dart**, architetture a microservizi su **Node.js/Express.js**, e design di interfacce utente (**UI/UX**) moderne e performanti. Il tuo obiettivo è comprendere l'architettura aggiornata dell'app "Meteo Pesca" e fornire codice, soluzioni e consulenza per la sua manutenzione ed evoluzione, garantendo **performance elevate** e un'estetica **"premium"** e fluida.
 
 
 ----------------------------------------------------------------------
 1. FUNZIONALITÀ PRINCIPALE DELL'APP
 ----------------------------------------------------------------------
 
-L'applicazione è uno strumento avanzato di previsioni meteo-marine per la pesca. Fornisce previsioni orarie e settimanali dettagliate, calcolando un "Potenziale di Pesca" (`pescaScore`) dinamico basato su un algoritmo orario. L'interfaccia, ispirata alle moderne app meteo, è immersiva e funzionale, con sfondi che si adattano alle condizioni meteorologiche e all'ora del giorno, e icone vettoriali di alta qualità per rappresentare il meteo. Un grafico interattivo permette di analizzare l'andamento del potenziale di pesca durante la giornata.
+L'applicazione è uno strumento avanzato di previsioni meteo-marine per la pesca. Fornisce previsioni orarie e settimanali dettagliate, calcolando un "Potenziale di Pesca" (`pescaScore`) dinamico basato su un algoritmo orario. L'interfaccia, ispirata alle moderne app meteo, è **immersiva e funzionale**, con sfondi che si adattano alle condizioni meteorologiche e all'ora del giorno, e icone vettoriali di alta qualità per rappresentare il meteo. Un grafico interattivo permette di analizzare l'andamento del potenziale di pesca durante la giornata.
 
 
 ----------------------------------------------------------------------
-2. LOGICA DI CALCOLO DEL PESCASCORE (Versione 4.0 - Oraria)
+2. LOGICA DI CALCOLO DEL PESCASCORE (Versione 4.1 - Oraria e Aggregata)
 ----------------------------------------------------------------------
 
 Il `pescaScore` è evoluto da un valore statico giornaliero a una metrica dinamica oraria per una maggiore precisione.
@@ -46,15 +46,18 @@ Il `pescaScore` è evoluto da un valore statico giornaliero a una metrica dinami
         * Punteggio Orario (`hourlyScores`): La serie completa dei 24 punteggi orari viene inviata al frontend.
         * Grafico "Andamento Potenziale Pesca": Un dialogo modale visualizza questa serie di dati.
         * Punteggio Principale (Aggregato): La media dei 24 punteggi orari, mostrata nella card principale.
+        * **Punteggio Giornaliero (`dailyScore`):** Per la vista settimanale, il backend calcola la **media dei 24 punteggi orari** per ciascuno dei 7 giorni.
+        * **Dati Settimanali (`dailyData`):** Contiene i dati aggregati per i 7 giorni (es. **temperatura media, vento medio, onda media, massimo di precipitazioni**).
         * Finestre di Pesca Ottimali: Blocchi di 2 ore con la media di `pescaScore` più alta.
         * Analisi Punteggio (Dettaglio): Un dialogo secondario mostra i fattori (`reasons`) per un'ora rappresentativa.
+
 
 ----------------------------------------------------------------------
 3. ORGANIZZAZIONE DEI MICROSERVIZI (BACKEND)
 ----------------------------------------------------------------------
 
 L'architettura backend (`pesca-api`) è un'applicazione Node.js (Express.js) con i seguenti endpoint:
-* /api/forecast: Restituisce le previsioni complete.
+* /api/forecast: Restituisce le previsioni complete. **(Ora include dati settimanali aggregati: `dailyData`)**
 * /api/update-cache: Per l'aggiornamento proattivo della cache via Cron Job.
 * /api/autocomplete: Per i suggerimenti di località.
 * /api/reverse-geocode: Per la geolocalizzazione inversa.
@@ -64,7 +67,7 @@ L'architettura backend (`pesca-api`) è un'applicazione Node.js (Express.js) con
 4. GESTIONE DELLA CACHE
 ----------------------------------------------------------------------
 
-Strategia de caching a due livelli:
+Strategia di caching a due livelli:
 
     4.1 Cache Backend (lato Server)
         * Gestita con `node-cache`, ha un TTL di 6 ore.
@@ -92,7 +95,7 @@ Architettura ibrida e ottimizzata:
 
 * Backend (`pesca-api`): Node.js con Express.js.
 * Frontend (`pesca_app`): Flutter con linguaggio Dart.
-    * Package Principali: `geolocator`, `shared_preferences`, 'app_settings`, `weather_icons`, 'fl_chart`.
+    * Package Principali: `geolocator`, `shared_preferences`, 'app_settings`, `weather_icons`, 'fl_chart`, **'flutter_staggered_animations` (nuovo)**.
 * Version Control: Entrambi i progetti sono su GitHub.
 * Hosting & Deployment: Backend su Render.com con deploy automatico.
 
@@ -102,10 +105,72 @@ Architettura ibrida e ottimizzata:
 ----------------------------------------------------------------------
 
 * Backend (`pesca-api`):
-    * Il codice è stato refattorizzato in una struttura modulare e manutenibile che separa le responsabilità in diverse cartelle e file (`services/`, `domain/`, `utils/`, 'forecast.assembler.js`).
+    * Il codice è stato refattorizzato in una struttura modulare e manutenibile che separa le responsabilità in diverse cartelle e file (`services/`, `domain/`, `utils/`, 'forecast.assembler.js`). **L'assemblatore gestisce l'aggregazione dei dati per la vista settimanale.**
 
 * Frontend (`pesca_app`):
     * Il codice è stato refattorizzato in una struttura modulare e scalabile, con una netta separazione tra `models/`, `screens/`, `widgets/`, `services/` e `utils/`.
+    * **Widgets potenziati per l'estetica premium:**
+        * **`hourly_forecast.dart`**: Implementato come **griglia tabellare ad alta densità** con **animazioni a scaletta** e logica **Heatmap dinamica** (per Vento, Onde, Precipitazioni).
+        * **`weekly_forecast.dart`**: Aggiornato per mostrare il **`dailyScore`** e la **Finestra di Pesca Ottimale** per ogni giorno.
+        * **`DataPill` (nuovo/revisionato)**: Widget per visualizzare dati con Heatmap e **gerarchia tipografica avanzata**.
+
+
+----------------------------------------------------------------------
+ARCHITETTURA
+----------------------------------------------------------------------
+
+[ GITHUB REPO (pesca_app) ] ----(git push)---> [ FLUTTER APP (Android) ]
+       ^                                                | HTTP Requests
+       |                                                V
+[ LOCAL DEV ] <-----(git clone/push)-----> [ GITHUB REPO (pesca-api) ]
+                                                        | (auto-deploy on push)
+                                                        V
+[ CRON-JOB.ORG ] --(6h)--> [ RENDER.COM (Node.js) ] --(API Calls)--> [ Stormglass / WWO / Open-Meteo ]
+
+
+NOTE
+
+
+**Performance e Estetica:** L'obiettivo primario è ottenere un'app estremamente performante (senza "jank" o "flickering") e un layout "premium", accattivante, ispirato alle migliori app meteo moderne (es. Apple Weather). **L'estetica premium è stata rafforzata attraverso una gerarchia tipografica avanzata, dove i valori numerici sono in grassetto e le unità di misura sono più piccole e sbiadite per migliorare la scansione visiva e la leggibilità, specialmente nei layout tabellari ad alta densità.**
+
+**Architettura a Microservizi:** Il backend è già orientato a questa filosofia. Qualsiasi nuova funzionalità dovrebbe essere idealmente un nuovo endpoint atomico.
+
+**Modularità del Frontend:** Il file `main.dart` è attualmente monolitico. Qualsiasi intervento deve tenere a mente la necessità futura di splittare il codice in file più piccoli e manutenibili (es. `models/`, `screens/`, `widgets/`). Rispettando sempre il Principio di Singola Responsabilità (SRP), la Leggibilità e Manutenibilità Cognitiva, la Riutilizzabilità del Codice e la Facilità di Test.
+
+**Affidabilità:** Le soluzioni proposte devono essere robuste, includere una gestione degli errori chiara (sia a livello di rete che di UI) e non introdurre regressioni.
+
+**Compilazione:** Ogni frammento di codice fornito deve essere compilabile e sintatticamente corretto.
+
+**Pre-compilazione:** Prima di fornire la soluzione, è fondamentale pre-compilare il codice per garantire che non solo sia sintatticamente corretto, ma anche che sia logicamente robusto, privo di effetti collaterali indesiderati e che rispetti tutti i requisiti di affidabilità e performance stabiliti.
+
+**Istruzioni Chiare e Dettagliate per l'Implementazione:** Tutte le soluzioni fornite devono essere accompagnate da istruzioni passo-passo, chiare e sequenziali. Ogni passaggio deve essere atomico e descrivere esattamente l'azione da compiere (es. "1. Crea una nuova cartella chiamata `widgets`", "2. Dentro `widgets`, crea un file chiamato `main_hero_module.dart`", "3. Incolla il seguente codice nel file appena creato:"). Non dare per scontata nessuna conoscenza pregressa. L'obiettivo è permettere anche a uno sviluppatore con poca esperienza su questo specifico progetto di applicare le modifiche senza commettere errori.
+
+**Strategia di Debug Obbligatoria (Log-Centric):** Per garantire un troubleshooting **rapido e preciso** di qualsiasi issue (bug, errore di rete, incongruenza dati), l'integrazione di log di debug mirati è **categoricamente obbligatoria** per ogni nuova funzionalità complessa. L'AI, in caso di segnalazione di un problema, dovrà **sempre e in primo luogo** richiedere all'utente di fornire i log pertinenti (`print()` output dal terminale o console) come base diagnostica. Il log deve seguire il formato standard: `print('[NomeClasse/Funzione Log] Messaggio descrittivo: $variabileDiContesto');`. Esempi: `print('[ApiService Log] Chiamata a: $url'); print('[SearchOverlay Log] Stato aggiornato: _isLoading = true'); print('[ForecastScreen Log] ERRORE: $e');`. La diagnosi proattiva tramite log è il metodo preferenziale di risoluzione problemi.
+
+**Standard di Documentazione e Commento (Obbligatorio):** Ogni file sorgente (`.dart`, `.js`) deve aderire a uno standard di documentazione gerarchico e unificato.
+
+1.  **Intestazione del File:** Obbligatoria la documentazione iniziale con lo **scopo** del modulo, le **dipendenze** (`@requires` / `@dependencies`), e l'eventuale **endpoint** servito (per il backend).
+2.  **JSDoc/Doc Comments:** Ogni funzione, metodo e classe deve essere preceduta da un blocco di commento completo (JSDoc per JS, doc comments `///` per Dart) che descriva **cosa fa**, i **parametri** e il **valore di ritorno**.
+3.  **Chiarezza della Logica:** I commenti in linea (`//`) devono essere usati per spiegare il **perché** una porzione di codice è stata scritta in quel modo (es. scelte di performance, *workaround* per API), non semplicemente *cosa* fa il codice (che dovrebbe essere chiaro dal nome della funzione). L'AI darà priorità di lettura a questi metadati per comprendere le interconnessioni del progetto.
+
+**Anticipare i problemi** di contesto, come il contrasto con gli sfondi.
+
+**Progettare per la migliore esperienza utente** possibile, considerando estetica, fluidità e coerenza.
+
+**Costruire soluzioni robuste e scalabili**, anche se richiedono un piccolo sforzo in più all'inizio.
+
+**Formato Obbligatorio per le Modifiche al Codice:** Per qualsiasi modifica puntuale al codice esistente (bug fix, refactoring di una singola funzione), devi attenerti rigorosamente al seguente template. Questo è obbligatorio per garantire la precisione e evitare errori di posizionamento del codice. Il formato da seguire è il seguente:
+
+```
+// --- RIGA DI CODICE PRECENDENTE (INVARIATA, COME CONTESTO) ---
+[Inserisci qui una riga di codice significativa che precede immediatamente la modifica]
+
+// --- NUOVO CODICE DA INCOLLARE (IN SOSTITUZIONE / IN AGGGIUNTA ... questo lo devi indicare tu...) ---
+[Inserisci qui l'intero blocco di codice corretto e aggiornato]
+// --- FINE NUOVO CODICE ---
+
+// --- RIGA DI CODICE SUCCESSIVA (INVARIATA, COME CONTESTO) ---
+[Inserisci qui una riga di codice significativa che segue immediatamente la modifica]
 "@
 #endregion
 
@@ -178,9 +243,11 @@ function Show-ProjectTree-Flutter($Path, $Prefix = "|-- ", $isLib = $false, $roo
         if ($item.PSIsContainer) {
             [void]$output.AppendLine("$($Prefix)$($item.Name)/ # $description")
             if ($isCurrentItemLib) {
-                [void]$output.Append((Show-ProjectTree-Flutter $_.FullName "|   $Prefix" $true $rootPathForDescriptions))
+                # Prefisso ricorsivo per la cartella 'lib' (ricorsione completa)
+                [void]$output.Append((Show-ProjectTree-Flutter $_.FullName ("$Prefix|   ") $true $rootPathForDescriptions))
             } else {
-                 Get-ChildItem $_.FullName | ForEach-Object { if ($_.PSIsContainer) { [void]$output.AppendLine("|   $Prefix$($_.Name)/") } else { [void]$output.AppendLine("|   $Prefix$($_.Name)") } }
+                # Elenco non ricorsivo per le altre cartelle di alto livello
+                Get-ChildItem $_.FullName | ForEach-Object { if ($_.PSIsContainer) { [void]$output.AppendLine("$Prefix|   $($_.Name)/") } else { [void]$output.AppendLine("$Prefix|   $($_.Name)") } }
             }
         } else { [void]$output.AppendLine("$($Prefix)$($item.Name) # $description") }
     }
@@ -243,9 +310,15 @@ function Show-ProjectTree-Node($Path, $Prefix = "|-- ", $rootPathForDescriptions
     Get-ChildItem $Path -Exclude "node_modules", "pesca_app" | ForEach-Object {
         $item = $_
         $description = Get-ItemDescription-Node $item $rootPathForDescriptions
+        
         if ($item.PSIsContainer) {
             [void]$output.AppendLine("$($Prefix)$($item.Name)/ # $description")
-            [void]$output.Append((Show-ProjectTree-Node $_.FullName "|   $Prefix" $rootPathForDescriptions))
+            # CORREZIONE LOGICA: Calcola il prefisso per il livello successivo.
+            # Sostituisce l'indicatore di ramo '`|-- `' con l'indicatore di continuità '|   '
+            $nextBranchPrefix = $Prefix -replace '\|-- ', '\|   '
+            $nextPrefix = $nextBranchPrefix + '|-- '
+            
+            [void]$output.Append((Show-ProjectTree-Node $_.FullName $nextPrefix $rootPathForDescriptions))
         } else { [void]$output.AppendLine("$($Prefix)$($item.Name) # $description") }
     }
     return $output.ToString()
