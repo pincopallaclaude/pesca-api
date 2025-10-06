@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors'); // CORS middleware for handling cross-origin requests
 
-// Assicuriamoci di importare correttamente le nostre logiche
+// Ensure our logic is correctly imported
 const { fetchAndProcessForecast, myCache } = require('./lib/forecast-logic.js'); 
 const autocompleteHandler = require('./api/autocomplete.js'); 
 const reverseGeocodeHandler = require('./api/reverse-geocode.js');
@@ -12,27 +12,27 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // --- MIDDLEWARE ---
-app.use(cors()); // Abilita CORS per tutte le rotte
-app.use(express.json()); // Per parsare i body delle richieste in JSON
-app.use(express.static(path.join(__dirname, 'public'))); // Serve il frontend
+app.use(cors()); // Enable CORS for all routes
+app.use(express.json()); // To parse JSON request bodies
+app.use(express.static(path.join(__dirname, 'public'))); // Serve the frontend
 
-// --- ROUTE DI CONTROLLO "SONO VIVO?" ---
+// --- HEALTH CHECK ROUTE ---
 app.get('/', (req, res) => {
   res.status(200).send('Pesca API Server is running!');
 });
 
-// --- ROUTES API ---
-// Tutte le rotte inizieranno con /api
+// --- API ROUTES ---
+// All routes will start with /api
 app.get('/api/forecast', async (req, res) => {
     try {
         const location = req.query.location || '40.813238367880984,14.208944303204635';
         
-        // La logica di fetch è stata semplificata e resa più robusta
+        // The fetch logic has been simplified and made more robust
         const forecastData = await fetchAndProcessForecast(location);
 
-        // --- BLOCCO DI DEBUG FINALE ---
-        // Questo try...catch isolerà qualsiasi problema che avviene SOLO
-        // quando il server tenta di convertire l'oggetto finale in una stringa JSON.
+        // --- FINAL DEBUG BLOCK ---
+        // This try...catch will isolate any issue that occurs ONLY
+        // when the server attempts to convert the final object to a JSON string.
         try {
             res.json(forecastData);
         } catch (stringifyError) {
@@ -53,7 +53,7 @@ app.get('/api/update-cache', async (req, res) => {
     }
     try {
         const locationToUpdate = '40.813238367880984,14.208944303204635';
-        // fetchAndProcessForecast gestisce già il salvataggio in cache
+        // fetchAndProcessForecast already handles cache saving
         await fetchAndProcessForecast(locationToUpdate); 
         return res.status(200).json({ status: 'ok' });
     } catch (error) {
@@ -62,11 +62,25 @@ app.get('/api/update-cache', async (req, res) => {
     }
 });
 
-// Le due rotte che prima erano in file separati sono ora gestite direttamente qui per semplicità
+// The two routes that were previously in separate files are now handled directly here for simplicity
 app.get('/api/autocomplete', autocompleteHandler);
 app.get('/api/reverse-geocode', reverseGeocodeHandler);
 
-// --- AVVIO DEL SERVER ---
+// [POC - RAG FEATURE] Endpoint for AI-driven analysis
+// Simulates a 2.5 second delay to mimic LLM processing time
+app.post('/api/analyze-day', (req, res) => {
+  console.log(`[pesca-api] [${new Date().toISOString()}] Received request for /api/analyze-day`);
+
+  setTimeout(() => {
+    const analysisResponse = {
+      "analysis": "Analisi per domani: Le condizioni sono eccellenti per la pesca alla spigola da riva. Il mare in scaduta, unito alla pressione in calo, aumenterà l'attività dei predatori nelle prime ore del mattino. Evita la traina, il vento da nord-est renderà il mare troppo mosso al largo."
+    };
+    console.log('[pesca-api] Sending analysis response.');
+    res.status(200).json(analysisResponse);
+  }, 2500); // 2.5-second delay
+});
+
+// --- START THE SERVER ---
 app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
 });
