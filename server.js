@@ -70,7 +70,7 @@ app.post('/api/analyze-day', (req, res) => {
 
   setTimeout(() => {
     const analysisResponse = {
-      "analysis": "Analisi per domani: Le condizioni sono eccellenti per la pesca alla spigola da riva. Il mare in scaduta, unito alla pressione in calo, aumenterà l'attività dei predatori nelle prime ore del mattino. Evita la traina, il vento da nord-est renderà il mare troppo mosso al largo."
+      "analysis": "Analisi per domani: Le condizioni sono **eccellenti** per la pesca alla **spigola da riva**. Il mare in *scaduta*, unito alla pressione in *calo*, aumenterà l'attività dei predatori nelle *prime ore del mattino*. ##Evita la traina##, il vento da nord-est renderà il mare troppo mosso al largo."
     };
     console.log('[pesca-api] Sending analysis response.');
     res.status(200).json(analysisResponse);
