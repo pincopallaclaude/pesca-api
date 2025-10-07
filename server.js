@@ -1,4 +1,16 @@
 // server.js
+
+// Load environment variables
+require('dotenv').config();
+
+// --- NUOVO BLOCCO DI VERIFICA ---
+if (!process.env.GEMINI_API_KEY) {
+    console.error("FATAL ERROR: GEMINI_API_KEY non trovata nel file .env!");
+    process.exit(1); // Interrompe l'esecuzione del server se la chiave manca
+}
+// -----------------------------
+
+
 const express = require('express');
 const path = require('path');
 const cors = require('cors'); // CORS middleware for handling cross-origin requests
@@ -8,8 +20,13 @@ const { fetchAndProcessForecast, myCache } = require('./lib/forecast-logic.js');
 const autocompleteHandler = require('./api/autocomplete.js'); 
 const reverseGeocodeHandler = require('./api/reverse-geocode.js');
 
+// --- NUOVA IMPORTAZIONE RAG ---
+const { getFishingAdvice } = require('./lib/services/gemini.service');
+// -----------------------------
+
 const app = express();
-const PORT = process.env.PORT || 3001;
+// Usiamo la porta definita nel file esistente:
+const PORT = process.env.PORT || 3001; 
 
 // --- MIDDLEWARE ---
 app.use(cors()); // Abilita CORS per tutte le rotte
@@ -18,12 +35,12 @@ app.use(express.static(path.join(__dirname, 'public'))); // Serve il frontend
 
 // --- ROUTE DI CONTROLLO "SONO VIVO?" ---
 app.get('/', (req, res) => {
-  res.status(200).send('Pesca API Server is running!');
+    res.status(200).send('Pesca API Server is running!');
 });
 
-// --- ROUTES API ---
-// Tutte le rotte inizieranno con /api
+// --- ROUTES API (Logica esistente intatta) ---
 app.get('/api/forecast', async (req, res) => {
+    // ... (Logica esistente per /api/forecast)
     try {
         const location = req.query.location || '40.813238367880984,14.208944303204635';
         const forecastData = await fetchAndProcessForecast(location);
@@ -42,6 +59,7 @@ app.get('/api/forecast', async (req, res) => {
 });
 
 app.get('/api/update-cache', async (req, res) => {
+    // ... (Logica esistente per /api/update-cache)
     const secret = req.query.secret;
     if (secret !== process.env.CRON_SECRET_KEY) {
         return res.status(401).json({ message: 'Unauthorized' });
@@ -62,23 +80,40 @@ app.get('/api/reverse-geocode', reverseGeocodeHandler);
 
 
 // =========================================================================
-// --- [POC - RAG FEATURE] ENDPOINT PER L'ANALISI IA ---
-// Questo endpoint simula una chiamata a un LLM con un ritardo di 2.5 secondi
+// --- [RAG FEATURE] ENDPOINT PER L'ANALISI IA (SOSTITUISCE IL MOCK) ---
 // =========================================================================
-app.post('/api/analyze-day', (req, res) => {
-  console.log(`[pesca-api] [${new Date().toISOString()}] Received request for /api/analyze-day`);
+app.post('/api/analyze-day', async (req, res) => {
+    console.log(`[Server] Ricevuta richiesta RAG per /api/analyze-day`);
 
-  setTimeout(() => {
-    const analysisResponse = {
-      "analysis": "Analisi per domani: Le condizioni sono **eccellenti** per la pesca alla **spigola da riva**. Il mare in *scaduta*, unito alla pressione in *calo*, aumenterà l'attività dei predatori nelle *prime ore del mattino*. ##Evita la traina##, il vento da nord-est renderà il mare troppo mosso al largo."
-    };
-    console.log('[pesca-api] Sending analysis response.');
-    res.status(200).json(analysisResponse);
-  }, 2500); // Ritardo di 2.5 secondi per simulare il processing
+    // Estrae i dati dal corpo della richiesta POST, usando i valori di default
+    const { 
+        location = "Foce del Tevere", 
+        date = new Date().toISOString().split('T')[0], 
+        userQuery = "Qual è la strategia vincente per oggi?" 
+    } = req.body;
+
+    try {
+        // Chiama il servizio Gemini che esegue il flusso RAG completo
+        const advice = await getFishingAdvice(userQuery, location, date);
+        
+        // Risposta strutturata conforme all'obiettivo (un oggetto JSON contenente l'analisi)
+        res.status(200).json({
+            analysis: advice // Usiamo la chiave 'analysis' come nel tuo mock precedente
+        });
+
+    } catch (error) {
+        console.error(`[Server] Errore nell'analisi AI: ${error.message}`);
+        // Restituisce l'errore in caso di fallimento della chiamata a Gemini
+        res.status(500).json({
+            status: "error",
+            message: "Errore durante la generazione del consiglio di pesca dall'AI."
+        });
+    }
 });
 
 
 // --- AVVIO DEL SERVER ---
 app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
+    console.log(`Endpoint RAG ATTIVO: POST http://localhost:${PORT}/api/analyze-day`);
 });
