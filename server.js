@@ -74,7 +74,7 @@ app.get('/api/reverse-geocode', reverseGeocodeHandler);
 
 
 // =========================================================================
-// --- [FINAL RAG IMPLEMENTATION - BUGFIXED hourly access] ENDPOINT PER L'ANALISI IA ---
+// --- [FINAL RAG IMPLEMENTATION - BUGFIXED Empty Response] ENDPOINT PER L'ANALISI IA ---
 // =========================================================================
 app.post('/api/analyze-day', async (req, res) => {
     console.log(`[pesca-api] [${new Date().toISOString()}] Received RAG request.`);
@@ -92,14 +92,11 @@ app.post('/api/analyze-day', async (req, res) => {
         const forecastDataArray = await fetchAndProcessForecast(locationCoords);
         
         if (!forecastDataArray || forecastDataArray.length === 0) {
-            // Se non ci sono dati, solleviamo un errore esplicito
             console.error("[RAG-Flow] Dati forecast non disponibili per la posizione.");
             return res.status(500).json({ status: 'error', message: "Impossibile recuperare i dati meteo marini per l'analisi." });
         }
 
-        const firstDay = forecastDataArray[0] || {}; // [BUGFIX CRITICO] Assicuriamo che firstDay sia almeno un oggetto vuoto
-        
-        // [BUGFIX CRITICO] Assicuriamo che 'hourly' esista prima di leggerlo
+        const firstDay = forecastDataArray[0] || {}; 
         const currentHourData = firstDay.hourly && firstDay.hourly.length > 0 
             ? (firstDay.hourly.find(h => h.isCurrentHour) || firstDay.hourly[0] || {}) 
             : {};
@@ -139,7 +136,7 @@ Dati Meteo-Marini per ${firstDay.locationName || 'località sconosciuta'} (${fir
 Sei Meteo Pesca AI, un esperto di pesca sportiva. Analizza i dati e i fatti pertinenti per dare un consiglio strategico.
 
 --- ISTRUZIONI DI FORMATTAZIONE ---
-Usa Markdown: '###' per i titoli, '---' per i separatori, '*' per le liste, '**' per highlight positivi e '~~' per avvertimenti.
+Usa Markdown: '###' per i titoli, '---' per i separatori, '*' per le liste, '**' per highlight positivi e '~~' per avvertimenti. La tua risposta DEVE essere in Italiano e DEVE contenere testo significativo.
 
 --- DATI METEO-MARINI ---
 ${weatherTextForPrompt}
@@ -154,6 +151,17 @@ In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell
 
         // 6. Send to Gemini for the final analysis
         const analysisResult = await generateAnalysis(prompt);
+
+        // [BUGFIX CRITICO] Verifichiamo che la risposta AI non sia vuota o solo whitespace
+        if (!analysisResult || analysisResult.trim().length === 0) {
+            console.error("[GeminiService] L'analisi è vuota o insufficiente.");
+            // Restituiamo un errore gestibile al frontend
+            return res.status(500).json({ 
+                status: 'error', 
+                message: "L'AI ha prodotto una risposta vuota. Riprova tra poco." 
+            });
+        }
+
 
         // 7. Send back the response in the format the app expects ('data' field).
         return res.status(200).json({
