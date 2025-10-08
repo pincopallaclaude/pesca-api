@@ -3,7 +3,7 @@
 // Load environment variables
 require('dotenv').config();
 
-// --- NUOVO BLOCCO DI VERIFICA ---
+// --- BLOCCO DI VERIFICA CHIAVE API ---
 if (!process.env.GEMINI_API_KEY) {
     console.error("FATAL ERROR: GEMINI_API_KEY non trovata nel file .env!");
     process.exit(1); // Interrompe l'esecuzione del server se la chiave manca
@@ -15,9 +15,12 @@ const path = require('path');
 const cors = require('cors'); // CORS middleware for handling cross-origin requests
 
 // Assicuriamoci di importare correttamente le nostre logiche
-const { fetchAndProcessForecast, myCache } = require('./lib/forecast-logic.js'); 
-const { getKnowledgeFor } = require('./lib/domain/knowledge_base.js'); // Funzione per la Knowledge Base
+const { fetchAndProcessForecast, myCache, getUnifiedForecastData } = require('./lib/forecast-logic.js'); 
 const { generateAnalysis } = require('./lib/services/gemini.service.js'); // Funzione per la chiamata a Gemini
+
+// [RAG CORREZIONE] Importiamo la funzione di ricerca vettoriale al top level
+const { queryKnowledgeBase } = require('./lib/services/vector.service.js'); 
+
 const autocompleteHandler = require('./api/autocomplete.js'); 
 const reverseGeocodeHandler = require('./api/reverse-geocode.js');
 
@@ -37,7 +40,6 @@ app.get('/', (req, res) => {
 
 // --- ROUTES API (Logica esistente intatta) ---
 app.get('/api/forecast', async (req, res) => {
-    // ... (Logica esistente per /api/forecast)
     try {
         const location = req.query.location || '40.813238367880984,14.208944303204635';
         const forecastData = await fetchAndProcessForecast(location);
@@ -56,14 +58,13 @@ app.get('/api/forecast', async (req, res) => {
 });
 
 app.get('/api/update-cache', async (req, res) => {
-    // ... (Logica esistente per /api/update-cache)
     const secret = req.query.secret;
     if (secret !== process.env.CRON_SECRET_KEY) {
         return res.status(401).json({ message: 'Unauthorized' });
     }
     try {
         const locationToUpdate = '40.813238367880984,14.208944303204635';
-        await fetchAndProcessForecast(locationToUpdate); 
+        await getUnifiedForecastData(locationToUpdate); 
         return res.status(200).json({ status: 'ok' });
     } catch (error) {
         console.error("[CRON JOB] Error during update:", error.message);
@@ -71,90 +72,95 @@ app.get('/api/update-cache', async (req, res) => {
     }
 });
 
-// Le due rotte che prima erano in file separati sono ora gestite direttamente qui per semplicità
 app.get('/api/autocomplete', autocompleteHandler);
 app.get('/api/reverse-geocode', reverseGeocodeHandler);
 
 
 // =========================================================================
-// --- [RAG FEATURE] ENDPOINT PER L'ANALISI IA (AGGIORNATO CON DATI REALI) ---
+// --- [FINAL RAG IMPLEMENTATION - CORRECTED AND ALIGNED] ---
 // =========================================================================
 app.post('/api/analyze-day', async (req, res) => {
-    console.log(`[pesca-api] [${new Date().toISOString()}] Received RAG request for /api/analyze-day`);
-
+    console.log(`[pesca-api] [${new Date().toISOString()}] Received RAG request.`);
+ 
     try {
-        // 1. Get real coordinates from the app's request body
-        // La userQuery viene passata dall'app per personalizzare la richiesta all'AI
-        const { lat, lon, userQuery } = req.body;
-        
+        // La userQuery è opzionale, utile per personalizzare il consiglio AI
+        const { lat, lon, userQuery } = req.body; 
+        const finalUserQuery = userQuery || "Qual è il miglior momento per pescare oggi?";
+
         if (!lat || !lon) {
             return res.status(400).json({ status: 'error', message: 'Latitude and longitude are required.' });
         }
-        // userQuery è opzionale, ma utile per personalizzare il consiglio (es. "Voglio pescare Spigole")
-        const finalUserQuery = userQuery || "Qual è il miglior momento per pescare oggi?";
-
-        // 2. Fetch the complete, real weather forecast data
+        
+        // 1. Fetch real weather data
         const locationCoords = `${lat},${lon}`;
-        // La funzione restituisce { locationName, forecast: [giorno1, giorno2, ...] }
-        const { locationName, forecast } = await fetchAndProcessForecast(locationCoords);
+        const forecastDataArray = await getUnifiedForecastData(locationCoords);
+        
+        if (!forecastDataArray || forecastDataArray.length === 0) {
+          throw new Error("Failed to retrieve any forecast data.");
+        }
+        const firstDay = forecastDataArray[0];
+        const currentHourData = firstDay.hourly.find(h => h.isCurrentHour) || firstDay.hourly[0] || {};
 
-        // Analizziamo il primo giorno (oggi) del forecast
-        const firstDay = forecast[0]; 
-        const currentHourData = firstDay.hourly.find(h => h.isCurrentHour) || firstDay.hourly[0];
 
-        // === LOG DI DEBUG STRATEGICO INSERITO QUI ===
-        console.log("DEBUG: Dati reali inviati al prompt:", JSON.stringify(firstDay, null, 2)); 
-        // =============================================
+        // 2. [RAG STEP] Create a query string from the most relevant weather data.
+        const weatherQuery = `
+          Condizioni generali: ${firstDay.weatherDesc || ''}. 
+          Stato del mare: ${firstDay.mare || ''}. 
+          Pressione: ${firstDay.pressione || ''}.
+          Vento: ${firstDay.ventoDati || ''}.
+        `.trim().replace(/\s+/g, ' ');
 
-        // 3. Extract key metrics to build a rich context for the AI
-        // Normalizzazione dei dati: usiamo '|| "Dato non disponibile"' per garantire che l'AI riceva sempre una stringa valida e non un campo vuoto.
-        const weatherText = `
-Dati Meteo-Marini per ${locationName || 'N/A'} (${firstDay.giornoData || 'N/A'} - Ora: ${currentHourData.ora || 'N/A'}):
-- Condizioni Generali: ${currentHourData.weatherDesc || 'Dato non disponibile'}
-- Temperatura Aria: Min ${firstDay.temperaturaMin || 'N/A'} C, Max ${firstDay.temperaturaMax || 'N/A'} C (Media: ${firstDay.temperaturaAvg || 'N/A'} C)
-- Vento: ${firstDay.ventoDati || 'Dato non disponibile'}
-- Stato Mare (Onde/Corrente): ${firstDay.mare || 'Dato non disponibile'}
-- Pressione: ${currentHourData.pressione || 'Dato non disponibile'} hPa
-- Temperatura Acqua: ${currentHourData.waterTemperature || 'N/A'} C
-- Fase Lunare: ${firstDay.moonPhase || 'N/A'}
-- Indice Pesca Orario (Score): ${currentHourData.pescaScore || 'N/A'} / 100
-- Maree: ${firstDay.maree || 'Dato non disponibile'}
+        console.log(`[RAG-Flow] Generated query for Vector DB: "${weatherQuery}"`);
+
+        // 3. [RAG STEP] Query the vector DB. 
+        // Chiamiamo la funzione corretta e importata al top: queryKnowledgeBase
+        const relevantDocs = await queryKnowledgeBase(weatherQuery, 2); 
+
+        // Format the retrieved documents
+        const knowledgeText = relevantDocs.length > 0 
+            ? relevantDocs.map((doc, i) => `[Fatto Rilevante ${i + 1}]\n${doc}`).join('\n---\n') 
+            : "Nessun fatto specifico trovato, basati sulla conoscenza generale.";
+        
+        console.log(`[RAG-Flow] Retrieved knowledge:\n${knowledgeText}`);
+        
+        // 4. Prepare a clean weather summary for the AI prompt.
+        const weatherTextForPrompt = `
+Dati Meteo-Marini per ${firstDay.locationName || 'località sconosciuta'} (${firstDay.giornoData || 'oggi'}):
+- Condizioni: ${firstDay.weatherDesc || 'N/A'}, Temp: ${firstDay.tempMinMax || 'N/A'}
+- Vento: ${firstDay.ventoDati || 'N/A'}, Mare: ${firstDay.mare || 'N/A'}
+- Pressione: ${firstDay.pressione || 'N/A'}, Acqua: ${currentHourData.waterTemperature || 'N/A'}C
+- Luna: ${firstDay.moonPhase || 'N/A'}, Maree: Alta ${firstDay.altaMarea || 'N/A'}, Bassa ${firstDay.bassaMarea || 'N/A'}
         `.trim();
 
-        // 4. Get knowledge base context (passando i parametri che potrebbero influenzare le "Regole d'Oro" se implementassimo una logica selettiva)
-        const knowledgeText = getKnowledgeFor({ locationName, moonPhase: firstDay.moonPhase });
-
-        // 5. Build the final, dynamic prompt
+        // 5. Build the final prompt with formatting instructions
         const prompt = `
-Sei l'Meteo Pesca AI, un esperto di pesca sportiva. Il tuo compito è analizzare in modo critico i dati meteo-marini in base alle regole d'oro fornite, e fornire una sintesi concisa e un consiglio operativo per l'utente.
+Sei Meteo Pesca AI, un esperto di pesca sportiva. Analizza i dati e i fatti pertinenti per dare un consiglio strategico.
+
+--- ISTRUZIONI DI FORMATTAZIONE ---
+Usa Markdown: '###' per i titoli, '---' per i separatori, '*' per le liste, '**' per highlight positivi e '~~' per avvertimenti.
 
 --- DATI METEO-MARINI ---
-${weatherText}
+${weatherTextForPrompt}
 --- FINE DATI ---
---- REGOLE D'ORO (Knowledge Base) ---
+
+--- FATTI RILEVANTI DALLA KNOWLEDGE BASE ---
 ${knowledgeText}
---- FINE REGOLE ---
+--- FINE FATTI ---
 
-In base all'analisi dei dati e delle regole:
-1. Sintetizza i **3 fattori più importanti** che influenzano la pesca oggi.
-2. Fornisci un **consiglio pratico** (esche/tecniche/orario) in risposta alla richiesta dell'utente: "${finalUserQuery}".
-3. Usa un tono da esperto e motivato.
-        `.trim();
-        
-        // console.log("DEBUG: Final Prompt sent to Gemini:\n", prompt);
+In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell'utente: "${finalUserQuery}".
+    `.trim();
 
-        // 6. Send to Gemini for analysis
+        // 6. Send to Gemini for the final analysis
         const analysisResult = await generateAnalysis(prompt);
 
-        // 7. Return the AI-generated response
-        // La risposta viene incapsulata in 'analysis' per l'app frontend
+        // 7. Send back the response in the format the app expects ('data' field).
         return res.status(200).json({
             status: 'success',
-            analysis: analysisResult,
+            data: analysisResult, 
         });
 
     } catch (error) {
-        console.error("[pesca-api] ERROR during /api/analyze-day:", error);
+        console.error("[pesca-api] ERROR during RAG /api/analyze-day:", error.stack);
         return res.status(500).json({
             status: 'error',
             message: "Errore durante l'elaborazione dell'analisi AI."
