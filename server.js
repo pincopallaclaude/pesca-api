@@ -15,12 +15,10 @@ const path = require('path');
 const cors = require('cors'); // CORS middleware for handling cross-origin requests
 
 // Assicuriamoci di importare correttamente le nostre logiche
-const { fetchAndProcessForecast, myCache, getUnifiedForecastData } = require('./lib/forecast-logic.js'); 
+// [CORREZIONE] Rimuoviamo getUnifiedForecastData per evitare il TypeError e usiamo solo fetchAndProcessForecast
+const { fetchAndProcessForecast, myCache } = require('./lib/forecast-logic.js'); 
 const { generateAnalysis } = require('./lib/services/gemini.service.js'); // Funzione per la chiamata a Gemini
-
-// [RAG CORREZIONE] Importiamo la funzione di ricerca vettoriale al top level
-const { queryKnowledgeBase } = require('./lib/services/vector.service.js'); 
-
+const { queryKnowledgeBase } = require('./lib/services/vector.service.js'); // Import RAG corretto
 const autocompleteHandler = require('./api/autocomplete.js'); 
 const reverseGeocodeHandler = require('./api/reverse-geocode.js');
 
@@ -64,7 +62,8 @@ app.get('/api/update-cache', async (req, res) => {
     }
     try {
         const locationToUpdate = '40.813238367880984,14.208944303204635';
-        await getUnifiedForecastData(locationToUpdate); 
+        // [CORREZIONE] Usiamo fetchAndProcessForecast che è definita
+        await fetchAndProcessForecast(locationToUpdate); 
         return res.status(200).json({ status: 'ok' });
     } catch (error) {
         console.error("[CRON JOB] Error during update:", error.message);
@@ -77,13 +76,12 @@ app.get('/api/reverse-geocode', reverseGeocodeHandler);
 
 
 // =========================================================================
-// --- [FINAL RAG IMPLEMENTATION - CORRECTED AND ALIGNED] ---
+// --- [FINAL RAG IMPLEMENTATION - BUGFIXED] ENDPOINT PER L'ANALISI IA ---
 // =========================================================================
 app.post('/api/analyze-day', async (req, res) => {
     console.log(`[pesca-api] [${new Date().toISOString()}] Received RAG request.`);
  
     try {
-        // La userQuery è opzionale, utile per personalizzare il consiglio AI
         const { lat, lon, userQuery } = req.body; 
         const finalUserQuery = userQuery || "Qual è il miglior momento per pescare oggi?";
 
@@ -93,13 +91,16 @@ app.post('/api/analyze-day', async (req, res) => {
         
         // 1. Fetch real weather data
         const locationCoords = `${lat},${lon}`;
-        const forecastDataArray = await getUnifiedForecastData(locationCoords);
+        // [CORREZIONE] Usiamo fetchAndProcessForecast che è definita (risolve il TypeError)
+        const forecastDataArray = await fetchAndProcessForecast(locationCoords);
         
         if (!forecastDataArray || forecastDataArray.length === 0) {
           throw new Error("Failed to retrieve any forecast data.");
         }
+
         const firstDay = forecastDataArray[0];
-        const currentHourData = firstDay.hourly.find(h => h.isCurrentHour) || firstDay.hourly[0] || {};
+        // Assicuriamo che currentHourData sia estratto correttamente
+        const currentHourData = firstDay.hourly ? (firstDay.hourly.find(h => h.isCurrentHour) || firstDay.hourly[0] || {}) : {};
 
 
         // 2. [RAG STEP] Create a query string from the most relevant weather data.
@@ -113,7 +114,6 @@ app.post('/api/analyze-day', async (req, res) => {
         console.log(`[RAG-Flow] Generated query for Vector DB: "${weatherQuery}"`);
 
         // 3. [RAG STEP] Query the vector DB. 
-        // Chiamiamo la funzione corretta e importata al top: queryKnowledgeBase
         const relevantDocs = await queryKnowledgeBase(weatherQuery, 2); 
 
         // Format the retrieved documents
@@ -167,11 +167,10 @@ In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell
         });
     }
 });
-// --- FINE ENDPOINT AGGIORNATO ---
 
 
 // --- AVVIO DEL SERVER ---
 app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
     console.log(`Endpoint RAG ATTIVO: POST http://localhost:${PORT}/api/analyze-day`);
-});
+}); 
