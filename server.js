@@ -15,7 +15,6 @@ const path = require('path');
 const cors = require('cors'); // CORS middleware for handling cross-origin requests
 
 // Assicuriamoci di importare correttamente le nostre logiche
-// [CORREZIONE] Rimuoviamo getUnifiedForecastData per evitare il TypeError e usiamo solo fetchAndProcessForecast
 const { fetchAndProcessForecast, myCache } = require('./lib/forecast-logic.js'); 
 const { generateAnalysis } = require('./lib/services/gemini.service.js'); // Funzione per la chiamata a Gemini
 const { queryKnowledgeBase } = require('./lib/services/vector.service.js'); // Import RAG corretto
@@ -62,7 +61,6 @@ app.get('/api/update-cache', async (req, res) => {
     }
     try {
         const locationToUpdate = '40.813238367880984,14.208944303204635';
-        // [CORREZIONE] Usiamo fetchAndProcessForecast che è definita
         await fetchAndProcessForecast(locationToUpdate); 
         return res.status(200).json({ status: 'ok' });
     } catch (error) {
@@ -76,7 +74,7 @@ app.get('/api/reverse-geocode', reverseGeocodeHandler);
 
 
 // =========================================================================
-// --- [FINAL RAG IMPLEMENTATION - BUGFIXED] ENDPOINT PER L'ANALISI IA ---
+// --- [FINAL RAG IMPLEMENTATION - BUGFIXED hourly access] ENDPOINT PER L'ANALISI IA ---
 // =========================================================================
 app.post('/api/analyze-day', async (req, res) => {
     console.log(`[pesca-api] [${new Date().toISOString()}] Received RAG request.`);
@@ -91,16 +89,20 @@ app.post('/api/analyze-day', async (req, res) => {
         
         // 1. Fetch real weather data
         const locationCoords = `${lat},${lon}`;
-        // [CORREZIONE] Usiamo fetchAndProcessForecast che è definita (risolve il TypeError)
         const forecastDataArray = await fetchAndProcessForecast(locationCoords);
         
         if (!forecastDataArray || forecastDataArray.length === 0) {
-          throw new Error("Failed to retrieve any forecast data.");
+            // Se non ci sono dati, solleviamo un errore esplicito
+            console.error("[RAG-Flow] Dati forecast non disponibili per la posizione.");
+            return res.status(500).json({ status: 'error', message: "Impossibile recuperare i dati meteo marini per l'analisi." });
         }
 
-        const firstDay = forecastDataArray[0];
-        // Assicuriamo che currentHourData sia estratto correttamente
-        const currentHourData = firstDay.hourly ? (firstDay.hourly.find(h => h.isCurrentHour) || firstDay.hourly[0] || {}) : {};
+        const firstDay = forecastDataArray[0] || {}; // [BUGFIX CRITICO] Assicuriamo che firstDay sia almeno un oggetto vuoto
+        
+        // [BUGFIX CRITICO] Assicuriamo che 'hourly' esista prima di leggerlo
+        const currentHourData = firstDay.hourly && firstDay.hourly.length > 0 
+            ? (firstDay.hourly.find(h => h.isCurrentHour) || firstDay.hourly[0] || {}) 
+            : {};
 
 
         // 2. [RAG STEP] Create a query string from the most relevant weather data.
@@ -167,10 +169,11 @@ In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell
         });
     }
 });
+// --- FINE ENDPOINT AGGIORNATO ---
 
 
 // --- AVVIO DEL SERVER ---
 app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
     console.log(`Endpoint RAG ATTIVO: POST http://localhost:${PORT}/api/analyze-day`);
-}); 
+});
