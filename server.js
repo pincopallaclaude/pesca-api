@@ -74,7 +74,7 @@ app.get('/api/reverse-geocode', reverseGeocodeHandler);
 
 
 // =========================================================================
-// --- [FINAL RAG IMPLEMENTATION - BUGFIXED Empty Response] ENDPOINT PER L'ANALISI IA ---
+// --- [FINAL RAG IMPLEMENTATION - ULTIMO TENTATIVO DI ESTRAZIONE DATI] ENDPOINT PER L'ANALISI IA ---
 // =========================================================================
 app.post('/api/analyze-day', async (req, res) => {
     console.log(`[pesca-api] [${new Date().toISOString()}] Received RAG request.`);
@@ -91,23 +91,34 @@ app.post('/api/analyze-day', async (req, res) => {
         const locationCoords = `${lat},${lon}`;
         const forecastDataArray = await fetchAndProcessForecast(locationCoords);
         
+        const NOT_SPECIFIED = 'Non Specificato';
+        
         if (!forecastDataArray || forecastDataArray.length === 0) {
             console.error("[RAG-Flow] Dati forecast non disponibili per la posizione.");
             return res.status(500).json({ status: 'error', message: "Impossibile recuperare i dati meteo marini per l'analisi." });
         }
 
+        // Estraggo il primo giorno in modo esplicito e sicuro
         const firstDay = forecastDataArray[0] || {}; 
+        
+        // Estraggo i dati per l'ora corrente (o la prima ora)
         const currentHourData = firstDay.hourly && firstDay.hourly.length > 0 
             ? (firstDay.hourly.find(h => h.isCurrentHour) || firstDay.hourly[0] || {}) 
             : {};
 
+        // --- ESTRAZIONE DATI CHIAVE PER RAG QUERY ---
+        const weatherDesc = firstDay.weatherDesc || NOT_SPECIFIED;
+        const mare = firstDay.mare || NOT_SPECIFIED;
+        const pressione = firstDay.pressione || NOT_SPECIFIED;
+        const ventoDati = firstDay.ventoDati || NOT_SPECIFIED;
+
 
         // 2. [RAG STEP] Create a query string from the most relevant weather data.
         const weatherQuery = `
-          Condizioni generali: ${firstDay.weatherDesc || ''}. 
-          Stato del mare: ${firstDay.mare || ''}. 
-          Pressione: ${firstDay.pressione || ''}.
-          Vento: ${firstDay.ventoDati || ''}.
+          Condizioni generali: ${weatherDesc}. 
+          Stato del mare: ${mare}. 
+          Pressione: ${pressione}.
+          Vento: ${ventoDati}.
         `.trim().replace(/\s+/g, ' ');
 
         console.log(`[RAG-Flow] Generated query for Vector DB: "${weatherQuery}"`);
@@ -118,16 +129,16 @@ app.post('/api/analyze-day', async (req, res) => {
         // Format the retrieved documents
         const knowledgeText = relevantDocs.length > 0 
             ? relevantDocs.map((doc, i) => `[Fatto Rilevante ${i + 1}]\n${doc}`).join('\n---\n') 
-            : "Nessun fatto specifico trovato, basati sulla conoscenza generale.";
+            : "Nessun fatto specifico trovato, l'analisi si baserà sulla conoscenza generale e sui dati meteo disponibili.";
         
         console.log(`[RAG-Flow] Retrieved knowledge:\n${knowledgeText}`);
         
         // 4. Prepare a clean weather summary for the AI prompt.
         const weatherTextForPrompt = `
 Dati Meteo-Marini per ${firstDay.locationName || 'località sconosciuta'} (${firstDay.giornoData || 'oggi'}):
-- Condizioni: ${firstDay.weatherDesc || 'N/A'}, Temp: ${firstDay.tempMinMax || 'N/A'}
-- Vento: ${firstDay.ventoDati || 'N/A'}, Mare: ${firstDay.mare || 'N/A'}
-- Pressione: ${firstDay.pressione || 'N/A'}, Acqua: ${currentHourData.waterTemperature || 'N/A'}C
+- Condizioni: ${weatherDesc}, Temp: ${firstDay.tempMinMax || 'N/A'}
+- Vento: ${ventoDati}, Mare: ${mare}
+- Pressione: ${pressione}, Acqua: ${currentHourData.waterTemperature || 'N/A'}C
 - Luna: ${firstDay.moonPhase || 'N/A'}, Maree: Alta ${firstDay.altaMarea || 'N/A'}, Bassa ${firstDay.bassaMarea || 'N/A'}
         `.trim();
 
@@ -136,7 +147,7 @@ Dati Meteo-Marini per ${firstDay.locationName || 'località sconosciuta'} (${fir
 Sei Meteo Pesca AI, un esperto di pesca sportiva. Analizza i dati e i fatti pertinenti per dare un consiglio strategico.
 
 --- ISTRUZIONI DI FORMATTAZIONE ---
-Usa Markdown: '###' per i titoli, '---' per i separatori, '*' per le liste, '**' per highlight positivi e '~~' per avvertimenti. La tua risposta DEVE essere in Italiano e DEVE contenere testo significativo.
+Usa Markdown: '###' per i titoli, '---' per i separatori, '*' per le liste, '**' per highlight positivi e '~~' per avvertimenti. La tua risposta DEVE essere in Italiano e DEVE contenere testo significativo, anche in assenza di dati specifici.
 
 --- DATI METEO-MARINI ---
 ${weatherTextForPrompt}
@@ -152,13 +163,12 @@ In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell
         // 6. Send to Gemini for the final analysis
         const analysisResult = await generateAnalysis(prompt);
 
-        // [BUGFIX CRITICO] Verifichiamo che la risposta AI non sia vuota o solo whitespace
+        // Verifichiamo che la risposta AI non sia vuota o solo whitespace
         if (!analysisResult || analysisResult.trim().length === 0) {
-            console.error("[GeminiService] L'analisi è vuota o insufficiente.");
-            // Restituiamo un errore gestibile al frontend
+            console.error("[GeminiService] L'analisi è vuota o insufficiente. Controllare il prompt generato.");
             return res.status(500).json({ 
                 status: 'error', 
-                message: "L'AI ha prodotto una risposta vuota. Riprova tra poco." 
+                message: "L'AI non ha potuto generare un'analisi significativa con i dati forniti. Riprova." 
             });
         }
 
