@@ -3,6 +3,7 @@
 // Load environment variables
 require('dotenv').config();
 
+// --- NUOVO BLOCCO DI VERIFICA ---
 if (!process.env.GEMINI_API_KEY) {
     console.error("FATAL ERROR: GEMINI_API_KEY non trovata nel file .env!");
     process.exit(1); // Interrompe l'esecuzione del server se la chiave manca
@@ -106,17 +107,18 @@ app.post('/api/analyze-day', async (req, res) => {
         // =============================================
 
         // 3. Extract key metrics to build a rich context for the AI
+        // Normalizzazione dei dati: usiamo '|| "Dato non disponibile"' per garantire che l'AI riceva sempre una stringa valida e non un campo vuoto.
         const weatherText = `
-Dati Meteo-Marini per ${locationName} (${firstDay.giornoData} - Ora: ${currentHourData.ora}):
-- Condizioni Generali: ${currentHourData.weatherDesc}
-- Temperatura Aria: Min ${firstDay.temperaturaMin} C, Max ${firstDay.temperaturaMax} C (Media: ${firstDay.temperaturaAvg} C)
-- Vento: ${firstDay.ventoDati}
-- Stato Mare (Onde/Corrente): ${firstDay.mare}
-- Pressione: ${currentHourData.pressione} hPa
+Dati Meteo-Marini per ${locationName || 'N/A'} (${firstDay.giornoData || 'N/A'} - Ora: ${currentHourData.ora || 'N/A'}):
+- Condizioni Generali: ${currentHourData.weatherDesc || 'Dato non disponibile'}
+- Temperatura Aria: Min ${firstDay.temperaturaMin || 'N/A'} C, Max ${firstDay.temperaturaMax || 'N/A'} C (Media: ${firstDay.temperaturaAvg || 'N/A'} C)
+- Vento: ${firstDay.ventoDati || 'Dato non disponibile'}
+- Stato Mare (Onde/Corrente): ${firstDay.mare || 'Dato non disponibile'}
+- Pressione: ${currentHourData.pressione || 'Dato non disponibile'} hPa
 - Temperatura Acqua: ${currentHourData.waterTemperature || 'N/A'} C
-- Fase Lunare: ${firstDay.moonPhase}
-- Indice Pesca Orario (Score): ${currentHourData.pescaScore} / 100
-- Maree: ${firstDay.maree}
+- Fase Lunare: ${firstDay.moonPhase || 'N/A'}
+- Indice Pesca Orario (Score): ${currentHourData.pescaScore || 'N/A'} / 100
+- Maree: ${firstDay.maree || 'Dato non disponibile'}
         `.trim();
 
         // 4. Get knowledge base context (passando i parametri che potrebbero influenzare le "Regole d'Oro" se implementassimo una logica selettiva)
@@ -159,6 +161,7 @@ In base all'analisi dei dati e delle regole:
         });
     }
 });
+// --- FINE ENDPOINT AGGIORNATO ---
 
 
 // --- AVVIO DEL SERVER ---
