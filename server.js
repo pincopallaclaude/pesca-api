@@ -211,11 +211,16 @@ In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell
         // 8. Correzione: Verifichiamo che la risposta AI sia significativa
         if (!analysisResult || analysisResult.trim().length < 50) { 
             console.error(`[GeminiService] L'analisi è vuota o insufficiente (lunghezza: ${analysisResult ? analysisResult.trim().length : 0}). Controllare il prompt generato.`);
-            // Restituiamo un errore strutturato (status 500) per gestire l'errore lato client
-            return res.status(500).json({ 
-                status: 'error', 
-                message: "L'AI non ha potuto generare un'analisi significativa con i dati forniti. Riprova." 
-            });
+            
+            // PREPARIAMO E LOGGIAMO LA RISPOSTA DI ERRORE DETTAGLIATA
+            const errorResponse = {
+                status: 'error', 
+                message: "L'AI non ha potuto generare un'analisi significativa con i dati forniti. Riprova." 
+            };
+            console.log("[pesca-api] Sent 500 Error Response (Empty Analysis):", JSON.stringify(errorResponse));
+
+            // Restituiamo un errore strutturato (status 500) per gestire l'errore lato client
+            return res.status(500).json(errorResponse); 
         }
 
         // 9. TRUNCATURA DI SICUREZZA (Safety Net)
@@ -231,13 +236,15 @@ In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell
         }
 
 
-        // 10. Send back the response in the format the app expects ('data' field).
-        // INVIAMO LA STRINGA ANALISI PULITA ESTRATTA DAL JSON
-        return res.status(200).json({
-            status: 'success',
-            data: finalAnalysis, 
-        });
+        // 10. Send back the response in the format the app expects ('analysis' field).
+        // !!! FIX CRITICO: Cambiato 'data' in 'analysis' per matchare il client Flutter !!!
+        const successResponse = {
+            status: 'success',
+            analysis: finalAnalysis, // <-- CORRETTO
+        };
+        console.log("[pesca-api] Sent 200 Success Response. Analysis length:", finalAnalysis.length);
 
+        return res.status(200).json(successResponse);
     } catch (error) {
         console.error("[pesca-api] ERROR during RAG /api/analyze-day:", error.stack);
         
@@ -246,10 +253,14 @@ In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell
             errorMessage = "Errore di parsing interno: la risposta dell'AI non era nel formato atteso.";
         }
         
-        return res.status(500).json({
-            status: 'error',
-            message: errorMessage
-        });
+        // PREPARIAMO E LOGGIAMO LA RISPOSTA DI ERRORE GENERICA
+        const errorResponse = {
+            status: 'error',
+            message: errorMessage
+        };
+        console.log("[pesca-api] Sent 500 Error Response (Catch Block):", JSON.stringify(errorResponse));
+
+        return res.status(500).json(errorResponse);
     }
 });
 // --- FINE ENDPOINT AGGIORNATO ---
