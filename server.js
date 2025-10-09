@@ -166,12 +166,13 @@ Dati Meteo-Marini per ${firstDay.locationName || 'località sconosciuta'} (${fir
 - Luna: ${firstDay.moonPhase || NOT_SPECIFIED}, Maree: Alta ${firstDay.altaMarea || NOT_SPECIFIED}, Bassa ${firstDay.bassaMarea || NOT_SPECIFIED}
         `.trim();
 
-        // 5. Build the final prompt with formatting instructions
+        // 5. Build the final prompt with formatting instructions for JSON output
         const prompt = `
 Sei Meteo Pesca AI, un esperto di pesca sportiva. Analizza i dati e i fatti pertinenti per dare un consiglio strategico.
 
---- ISTRUZIONI DI FORMATTAZIONE ---
-Usa Markdown: '###' per i titoli, '---' per i separatori, '*' per le liste, '**' per highlight positivi e '~~' per avvertimenti. **Limita la tua risposta a un massimo di 400 caratteri** per un'analisi **molto** concisa e rapida. La tua risposta DEVE essere in Italiano e DEVE contenere testo significativo, anche in assenza di dati specifici.
+--- ISTRUZIONI ---
+Genera l'analisi **esclusivamente in un singolo oggetto JSON** con la seguente struttura: {"analysis": "TUA ANALISI QUI"}.
+Il valore del campo 'analysis' deve contenere la tua analisi completa in Italiano, **massimo 350 caratteri**, formattata in Markdown ('###', '*', '**'). Non includere testo, spiegazioni o preamboli al di fuori dell'oggetto JSON.
 
 --- DATI METEO-MARINI ---
 ${weatherTextForPrompt}
@@ -184,10 +185,22 @@ ${knowledgeText}
 In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell'utente: "${finalUserQuery}".
     `.trim();
 
-        // 6. Send to Gemini for the final analysis
-        const analysisResult = await generateAnalysis(prompt);
+        // 6. Send to Gemini for the final analysis (we assume it returns the JSON string)
+        const analysisResultJsonText = await generateAnalysis(prompt);
 
-        // Correzione: Verifichiamo che la risposta AI sia significativa (almeno 50 caratteri di contenuto)
+        // 7. Parse the JSON result and extract the analysis string.
+        let analysisResult = null;
+        try {
+            // Assumiamo che generateAnalysis restituisca la stringa JSON generata.
+            const parsedJson = JSON.parse(analysisResultJsonText);
+            analysisResult = parsedJson.analysis;
+        } catch (e) {
+            console.error(`[GeminiService] Failed to parse JSON response: ${e.message}`, analysisResultJsonText);
+            // Se il parsing fallisce, lanciamo un errore specifico.
+            throw new Error("AI response was not valid structured JSON.");
+        }
+
+        // 8. Correzione: Verifichiamo che la risposta AI sia significativa
         if (!analysisResult || analysisResult.trim().length < 50) { 
             console.error(`[GeminiService] L'analisi è vuota o insufficiente (lunghezza: ${analysisResult ? analysisResult.trim().length : 0}). Controllare il prompt generato.`);
             // Restituiamo un errore strutturato (status 500) per gestire l'errore lato client
@@ -199,17 +212,24 @@ In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell
 
         console.log(`[GeminiService] Analysis generated successfully. Length: ${analysisResult.trim().length}`); 
 
-        // 7. Send back the response in the format the app expects ('data' field).
+        // 9. Send back the response in the format the app expects ('data' field).
+        // INVIAMO LA STRINGA ANALISI PULITA ESTRATTA DAL JSON
         return res.status(200).json({
             status: 'success',
-            data: analysisResult, 
+            data: analysisResult.trim(), 
         });
 
     } catch (error) {
         console.error("[pesca-api] ERROR during RAG /api/analyze-day:", error.stack);
+        
+        let errorMessage = "Errore durante l'elaborazione dell'analisi AI.";
+        if (error.message.includes("AI response was not valid structured JSON")) {
+            errorMessage = "Errore di parsing interno: la risposta dell'AI non era nel formato atteso.";
+        }
+        
         return res.status(500).json({
             status: 'error',
-            message: "Errore durante l'elaborazione dell'analisi AI."
+            message: errorMessage
         });
     }
 });
