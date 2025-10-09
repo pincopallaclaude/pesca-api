@@ -91,26 +91,28 @@ app.post('/api/analyze-day', async (req, res) => {
         const locationCoords = `${lat},${lon}`;
         const forecastDataArray = await fetchAndProcessForecast(locationCoords);
         
-        const NOT_SPECIFIED = 'Non Specificato';
-        
+        // MODIFICA QUI: Rendo la stringa di fallback esplicita per l'AI
+        const NOT_SPECIFIED = 'Informazione non disponibile'; // Questo corrisponde all'istruzione nel systemPrompt
+        
         if (!forecastDataArray || forecastDataArray.length === 0) {
-            console.error("[RAG-Flow] Dati forecast non disponibili per la posizione.");
-            return res.status(500).json({ status: 'error', message: "Impossibile recuperare i dati meteo marini per l'analisi." });
+            console.error("[RAG-Flow] Dati forecast non disponibili per la posizione.");
+            return res.status(500).json({ status: 'error', message: "Impossibile recuperare i dati meteo marini per l'analisi." });
         }
 
-        // Estraggo il primo giorno in modo esplicito e sicuro
+        // Estraggo il primo giorno in modo esplicito e sicuro
         const firstDay = forecastDataArray[0] || {}; 
-        
-        // Estraggo i dati per l'ora corrente (o la prima ora)
-        const currentHourData = firstDay.hourly && firstDay.hourly.length > 0 
-            ? (firstDay.hourly.find(h => h.isCurrentHour) || firstDay.hourly[0] || {}) 
-            : {};
+        
+        // Estraggo i dati per l'ora corrente (o la prima ora)
+        const currentHourData = firstDay.hourly && firstDay.hourly.length > 0 
+            ? (firstDay.hourly.find(h => h.isCurrentHour) || firstDay.hourly[0] || {}) 
+            : {};
 
-        // --- ESTRAZIONE DATI CHIAVE PER RAG QUERY ---
-        const weatherDesc = firstDay.weatherDesc || NOT_SPECIFIED;
-        const mare = firstDay.mare || NOT_SPECIFIED;
-        const pressione = firstDay.pressione || NOT_SPECIFIED;
-        const ventoDati = firstDay.ventoDati || NOT_SPECIFIED;
+        // --- ESTRAZIONE DATI CHIAVE PER RAG QUERY ---
+        // Se il dato manca (è null/undefined), viene sostituito con la stringa "Informazione non disponibile"
+        const weatherDesc = firstDay.weatherDesc || NOT_SPECIFIED;
+        const mare = firstDay.mare || NOT_SPECIFIED;
+        const pressione = firstDay.pressione || NOT_SPECIFIED;
+        const ventoDati = firstDay.ventoDati || NOT_SPECIFIED;
 
 
         // 2. [RAG STEP] Create a query string from the most relevant weather data.
@@ -138,8 +140,8 @@ app.post('/api/analyze-day', async (req, res) => {
 Dati Meteo-Marini per ${firstDay.locationName || 'località sconosciuta'} (${firstDay.giornoData || 'oggi'}):
 - Condizioni: ${weatherDesc}, Temp: ${firstDay.tempMinMax || 'N/A'}
 - Vento: ${ventoDati}, Mare: ${mare}
-- Pressione: ${pressione}, Acqua: ${currentHourData.waterTemperature || 'N/A'}C
-- Luna: ${firstDay.moonPhase || 'N/A'}, Maree: Alta ${firstDay.altaMarea || 'N/A'}, Bassa ${firstDay.bassaMarea || 'N/A'}
+- Pressione: ${pressione}, Acqua: ${currentHourData.waterTemperature || NOT_SPECIFIED}
+- Luna: ${firstDay.moonPhase || NOT_SPECIFIED}, Maree: Alta ${firstDay.altaMarea || NOT_SPECIFIED}, Bassa ${firstDay.bassaMarea || NOT_SPECIFIED}
         `.trim();
 
         // 5. Build the final prompt with formatting instructions
@@ -158,19 +160,19 @@ ${knowledgeText}
 --- FINE FATTI ---
 
 In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell'utente: "${finalUserQuery}".
-    `.trim();
+    `.trim();
 
         // 6. Send to Gemini for the final analysis
         const analysisResult = await generateAnalysis(prompt);
 
-        // Verifichiamo che la risposta AI non sia vuota o solo whitespace
-        if (!analysisResult || analysisResult.trim().length === 0) {
-            console.error("[GeminiService] L'analisi è vuota o insufficiente. Controllare il prompt generato.");
-            return res.status(500).json({ 
-                status: 'error', 
-                message: "L'AI non ha potuto generare un'analisi significativa con i dati forniti. Riprova." 
-            });
-        }
+        // Verifichiamo che la risposta AI non sia vuota o solo whitespace
+        if (!analysisResult || analysisResult.trim().length === 0) {
+            console.error("[GeminiService] L'analisi è vuota o insufficiente. Controllare il prompt generato.");
+            return res.status(500).json({ 
+                status: 'error', 
+                message: "L'AI non ha potuto generare un'analisi significativa con i dati forniti. Riprova." 
+            });
+        }
 
 
         // 7. Send back the response in the format the app expects ('data' field).
