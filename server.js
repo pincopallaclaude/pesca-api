@@ -110,7 +110,7 @@ app.post('/api/analyze-day', async (req, res) => {
             
             return res.status(200).json({
                 status: 'success',
-                data: defaultAnalysis,
+                analysis: defaultAnalysis, // Usiamo 'analysis' anche per il default
             });
         }
         // -------------------------------------------------------------
@@ -172,7 +172,7 @@ Sei Meteo Pesca AI, un esperto di pesca sportiva. Analizza i dati e i fatti pert
 
 --- ISTRUZIONI ---
 Genera l'analisi **esclusivamente in un singolo oggetto JSON** con la seguente struttura: {"analysis": "TUA ANALISI QUI"}.
-Il valore del campo 'analysis' deve contenere la tua analisi completa in Italiano, **massimo 750 caratteri**, formattata in Markdown ('###', '*', '**'). Non includere testo, spiegazioni o preamboli al di fuori dell'oggetto JSON.
+Il valore del campo 'analysis' deve contenere la tua analisi completa in Italiano, **massimo 1400 caratteri**, formattata in Markdown ('###', '*', '**'). Non includere testo, spiegazioni o preamboli al di fuori dell'oggetto JSON.
 
 --- DATI METEO-MARINI ---
 ${weatherTextForPrompt}
@@ -225,22 +225,21 @@ In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell
 
         // 9. TRUNCATURA DI SICUREZZA (Safety Net)
         let finalAnalysis = analysisResult.trim();
-        const MAX_LENGTH = 750; // La tua lunghezza massima desiderata.
+        const MAX_LENGTH = 3000; // <-- AUMENTATO IL LIMITE DI SICUREZZA
         
         console.log(`[GeminiService] Analysis generated successfully. Original Length: ${finalAnalysis.length}`); 
 
         if (finalAnalysis.length > MAX_LENGTH) {
             console.warn(`[GeminiService] WARNING: Analysis too long (${finalAnalysis.length}). Truncating to ${MAX_LENGTH} characters.`);
-            // Troncamento e aggiunta di puntini, se necessario.
+            // Aggiungiamo '...' se troncato.
             finalAnalysis = finalAnalysis.substring(0, MAX_LENGTH - 3) + '...';
         }
 
 
         // 10. Send back the response in the format the app expects ('analysis' field).
-        // !!! FIX CRITICO: Cambiato 'data' in 'analysis' per matchare il client Flutter !!!
         const successResponse = {
             status: 'success',
-            analysis: finalAnalysis, // <-- CORRETTO
+            analysis: finalAnalysis, 
         };
         console.log("[pesca-api] Sent 200 Success Response. Analysis length:", finalAnalysis.length);
 
