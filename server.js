@@ -102,10 +102,21 @@ app.post('/api/analyze-day', async (req, res) => {
         // Estraggo il primo giorno in modo esplicito e sicuro
         const firstDay = forecastDataArray[0] || {}; 
         
-        // --- NUOVO LOG DI DEBUG CRITICO ---
-        // Stampa l'oggetto completo 'firstDay' per capire perché i campi chiave sono vuoti.
+        // --- LOG DI DEBUG CRITICO: Eseguiamo un controllo sui dati prima dell'estrazione RAG ---
         console.log(`[RAG-Flow DEBUG] Contenuto di firstDay prima dell'estrazione RAG:\n${JSON.stringify(firstDay, null, 2)}`);
-        // ------------------------------------
+        
+        // --- NUOVO CONTROLLO CRITICO: INTERCETTARE OGGETTO VUOTO ---
+        if (Object.keys(firstDay).length === 0) {
+            console.error("[RAG-Flow] Struttura dati 'firstDay' vuota. Impossibile procedere con l'analisi AI.");
+            // Ritorna un'analisi predefinita e informativa per evitare l'errore AI non-committal
+            const defaultAnalysis = "### Analisi non disponibile\n---\nNon è stato possibile caricare i dati meteo-marini strutturati per la località selezionata. Questo potrebbe essere dovuto a un errore temporaneo nel servizio di aggregazione dei dati.\n\n**Consiglio:** Riprova tra qualche minuto o seleziona una località vicina. I dati relativi a Vento e Onde per il calcolo dello Score sono stati caricati, ma l'analisi dettagliata AI richiede più informazioni e sta avendo un problema di mappatura interna.";
+            
+            return res.status(200).json({
+                status: 'success',
+                data: defaultAnalysis,
+            });
+        }
+        // -------------------------------------------------------------
         
         // Estraggo i dati per l'ora corrente (o la prima ora)
         const currentHourData = firstDay.hourly && firstDay.hourly.length > 0 
@@ -127,7 +138,7 @@ app.post('/api/analyze-day', async (req, res) => {
           Vento: ${ventoDati}.
         `.trim().replace(/\s+/g, ' ');
 
-        // 3. --- NUOVO CONTROLLO DI ROBUSTZZA RAG ---
+        // 3. --- CONTROLLO DI ROBUSTZZA RAG ---
         // Verifica se tutti i dati chiave sono mancanti.
         const ALL_KEY_DATA_MISSING = [weatherDesc, mare, pressione, ventoDati].every(
             data => data === NOT_SPECIFIED
