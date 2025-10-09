@@ -74,7 +74,7 @@ app.get('/api/reverse-geocode', reverseGeocodeHandler);
 
 
 // =========================================================================
-// --- [FINAL RAG IMPLEMENTATION - ULTIMO TENTATIVO DI ESTRAZIONE DATI] ENDPOINT PER L'ANALISI IA ---
+// --- ENDPOINT PER L'ANALISI IA (Aggiunto controllo di robustezza) ---
 // =========================================================================
 app.post('/api/analyze-day', async (req, res) => {
     console.log(`[pesca-api] [${new Date().toISOString()}] Received RAG request.`);
@@ -89,10 +89,8 @@ app.post('/api/analyze-day', async (req, res) => {
         
         // 1. Fetch real weather data
         const locationCoords = `${lat},${lon}`;
-        // !!! CORREZIONE CRITICA: La funzione restituisce l'oggetto COMPLETO, 
-        // non solo l'array dei forecast. Lo rinominiamo per chiarezza.
+        // Estraiamo l'oggetto completo e l'array dei giorni
         const fullResponse = await fetchAndProcessForecast(locationCoords);
-        // Estraiamo l'array dei giorni (finalForecast)
         const forecastDataArray = fullResponse.forecast || [];
         
         // La stringa di fallback è esplicita per l'AI
@@ -103,17 +101,11 @@ app.post('/api/analyze-day', async (req, res) => {
             return res.status(500).json({ status: 'error', message: "Impossibile recuperare i dati meteo marini per l'analisi." });
         }
 
-        // Estraggo il primo giorno in modo esplicito e sicuro (ora si usa l'array corretto)
+        // Estraggo il primo giorno in modo esplicito e sicuro
         const firstDay = forecastDataArray[0] || {}; 
         
-        // --- LOG DI DEBUG CRITICO: Eseguiamo un controllo sui dati prima dell'estrazione RAG ---
-        // Logga l'intero array per verificare se è un array di oggetti vuoti ([{}, {}...])
-        console.log(`[RAG-Flow DEBUG] Contenuto COMPLETO di forecastDataArray:\n${JSON.stringify(forecastDataArray, null, 2)}`);
-        
-        // --- NUOVO CONTROLLO CRITICO: INTERCETTARE OGGETTO VUOTO ---
         if (Object.keys(firstDay).length === 0) {
             console.error("[RAG-Flow] Struttura dati 'firstDay' vuota. Impossibile procedere con l'analisi AI.");
-            // Ritorna un'analisi predefinita e informativa per evitare l'errore AI non-committal
             const defaultAnalysis = "### Analisi non disponibile\n---\nNon è stato possibile caricare i dati meteo-marini strutturati per la località selezionata. Questo potrebbe essere dovuto a un errore temporaneo nel servizio di aggregazione dei dati.\n\n**Consiglio:** Riprova tra qualche minuto o seleziona una località vicina. I dati relativi a Vento e Onde per il calcolo dello Score sono stati caricati, ma l'analisi dettagliata AI richiede più informazioni e sta avendo un problema di mappatura interna.";
             
             return res.status(200).json({
@@ -152,7 +144,6 @@ app.post('/api/analyze-day', async (req, res) => {
         let knowledgeText;
         if (ALL_KEY_DATA_MISSING) {
             console.warn("[RAG-Flow] Dati meteo chiave assenti. Query Vector DB saltata.");
-            // Fornisce un testo esplicito per l'AI che non causi rifiuto
             knowledgeText = "CONTESTO MANCANTE: Non è stato possibile reperire i dati specifici sul meteo (vento, mare, pressione) per la tua zona. L'analisi dovrà concentrarsi sui consigli di pesca basati solo sulle condizioni stagionali/lunari, e specificare che l'assenza di dati richiede cautela.";
         } else {
             // 3. [RAG STEP] Query the vector DB con i dati disponibili. 
@@ -176,8 +167,6 @@ Dati Meteo-Marini per ${firstDay.locationName || 'località sconosciuta'} (${fir
         `.trim();
 
         // 5. Build the final prompt with formatting instructions
-        // NOTA: Ho RICONFIGURATO il prompt per includere la variabile knowledgeText,
-        // che ora può contenere l'istruzione di fallback specifica se i dati mancano.
         const prompt = `
 Sei Meteo Pesca AI, un esperto di pesca sportiva. Analizza i dati e i fatti pertinenti per dare un consiglio strategico.
 
@@ -198,15 +187,17 @@ In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell
         // 6. Send to Gemini for the final analysis
         const analysisResult = await generateAnalysis(prompt);
 
-        // Verifichiamo che la risposta AI non sia vuota o solo whitespace
-        if (!analysisResult || analysisResult.trim().length === 0) {
-            console.error("[GeminiService] L'analisi è vuota o insufficiente. Controllare il prompt generato.");
+        // Correzione: Verifichiamo che la risposta AI sia significativa (almeno 50 caratteri di contenuto)
+        if (!analysisResult || analysisResult.trim().length < 50) { 
+            console.error(`[GeminiService] L'analisi è vuota o insufficiente (lunghezza: ${analysisResult ? analysisResult.trim().length : 0}). Controllare il prompt generato.`);
+            // Restituiamo un errore strutturato (status 500) per gestire l'errore lato client
             return res.status(500).json({ 
                 status: 'error', 
                 message: "L'AI non ha potuto generare un'analisi significativa con i dati forniti. Riprova." 
             });
         }
 
+        console.log(`[GeminiService] Analysis generated successfully. Length: ${analysisResult.trim().length}`); 
 
         // 7. Send back the response in the format the app expects ('data' field).
         return res.status(200).json({
