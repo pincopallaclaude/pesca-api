@@ -89,7 +89,11 @@ app.post('/api/analyze-day', async (req, res) => {
         
         // 1. Fetch real weather data
         const locationCoords = `${lat},${lon}`;
-        const forecastDataArray = await fetchAndProcessForecast(locationCoords);
+        // !!! CORREZIONE CRITICA: La funzione restituisce l'oggetto COMPLETO, 
+        // non solo l'array dei forecast. Lo rinominiamo per chiarezza.
+        const fullResponse = await fetchAndProcessForecast(locationCoords);
+        // Estraiamo l'array dei giorni (finalForecast)
+        const forecastDataArray = fullResponse.forecast || [];
         
         // La stringa di fallback è esplicita per l'AI
         const NOT_SPECIFIED = 'Informazione non disponibile'; 
@@ -99,11 +103,12 @@ app.post('/api/analyze-day', async (req, res) => {
             return res.status(500).json({ status: 'error', message: "Impossibile recuperare i dati meteo marini per l'analisi." });
         }
 
-        // Estraggo il primo giorno in modo esplicito e sicuro
+        // Estraggo il primo giorno in modo esplicito e sicuro (ora si usa l'array corretto)
         const firstDay = forecastDataArray[0] || {}; 
         
         // --- LOG DI DEBUG CRITICO: Eseguiamo un controllo sui dati prima dell'estrazione RAG ---
-        console.log(`[RAG-Flow DEBUG] Contenuto di firstDay prima dell'estrazione RAG:\n${JSON.stringify(firstDay, null, 2)}`);
+        // Logga l'intero array per verificare se è un array di oggetti vuoti ([{}, {}...])
+        console.log(`[RAG-Flow DEBUG] Contenuto COMPLETO di forecastDataArray:\n${JSON.stringify(forecastDataArray, null, 2)}`);
         
         // --- NUOVO CONTROLLO CRITICO: INTERCETTARE OGGETTO VUOTO ---
         if (Object.keys(firstDay).length === 0) {
