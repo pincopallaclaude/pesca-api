@@ -218,13 +218,24 @@ In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell
             });
         }
 
-        console.log(`[GeminiService] Analysis generated successfully. Length: ${analysisResult.trim().length}`); 
+        // 9. TRUNCATURA DI SICUREZZA (Safety Net)
+        let finalAnalysis = analysisResult.trim();
+        const MAX_LENGTH = 750; // La tua lunghezza massima desiderata.
+        
+        console.log(`[GeminiService] Analysis generated successfully. Original Length: ${finalAnalysis.length}`); 
 
-        // 9. Send back the response in the format the app expects ('data' field).
+        if (finalAnalysis.length > MAX_LENGTH) {
+            console.warn(`[GeminiService] WARNING: Analysis too long (${finalAnalysis.length}). Truncating to ${MAX_LENGTH} characters.`);
+            // Troncamento e aggiunta di puntini, se necessario.
+            finalAnalysis = finalAnalysis.substring(0, MAX_LENGTH - 3) + '...';
+        }
+
+
+        // 10. Send back the response in the format the app expects ('data' field).
         // INVIAMO LA STRINGA ANALISI PULITA ESTRATTA DAL JSON
         return res.status(200).json({
             status: 'success',
-            data: analysisResult.trim(), 
+            data: finalAnalysis, 
         });
 
     } catch (error) {
