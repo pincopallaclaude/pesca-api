@@ -91,8 +91,8 @@ app.post('/api/analyze-day', async (req, res) => {
         const locationCoords = `${lat},${lon}`;
         const forecastDataArray = await fetchAndProcessForecast(locationCoords);
         
-        // MODIFICA QUI: Rendo la stringa di fallback esplicita per l'AI
-        const NOT_SPECIFIED = 'Informazione non disponibile'; // Questo corrisponde all'istruzione nel systemPrompt
+        // La stringa di fallback è esplicita per l'AI
+        const NOT_SPECIFIED = 'Informazione non disponibile'; 
         
         if (!forecastDataArray || forecastDataArray.length === 0) {
             console.error("[RAG-Flow] Dati forecast non disponibili per la posizione.");
@@ -102,13 +102,17 @@ app.post('/api/analyze-day', async (req, res) => {
         // Estraggo il primo giorno in modo esplicito e sicuro
         const firstDay = forecastDataArray[0] || {}; 
         
+        // --- NUOVO LOG DI DEBUG CRITICO ---
+        // Stampa l'oggetto completo 'firstDay' per capire perché i campi chiave sono vuoti.
+        console.log(`[RAG-Flow DEBUG] Contenuto di firstDay prima dell'estrazione RAG:\n${JSON.stringify(firstDay, null, 2)}`);
+        // ------------------------------------
+        
         // Estraggo i dati per l'ora corrente (o la prima ora)
         const currentHourData = firstDay.hourly && firstDay.hourly.length > 0 
             ? (firstDay.hourly.find(h => h.isCurrentHour) || firstDay.hourly[0] || {}) 
             : {};
 
         // --- ESTRAZIONE DATI CHIAVE PER RAG QUERY ---
-        // Se il dato manca (è null/undefined), viene sostituito con la stringa "Informazione non disponibile"
         const weatherDesc = firstDay.weatherDesc || NOT_SPECIFIED;
         const mare = firstDay.mare || NOT_SPECIFIED;
         const pressione = firstDay.pressione || NOT_SPECIFIED;
@@ -123,16 +127,27 @@ app.post('/api/analyze-day', async (req, res) => {
           Vento: ${ventoDati}.
         `.trim().replace(/\s+/g, ' ');
 
-        console.log(`[RAG-Flow] Generated query for Vector DB: "${weatherQuery}"`);
+        // 3. --- NUOVO CONTROLLO DI ROBUSTZZA RAG ---
+        // Verifica se tutti i dati chiave sono mancanti.
+        const ALL_KEY_DATA_MISSING = [weatherDesc, mare, pressione, ventoDati].every(
+            data => data === NOT_SPECIFIED
+        );
 
-        // 3. [RAG STEP] Query the vector DB. 
-        const relevantDocs = await queryKnowledgeBase(weatherQuery, 2); 
+        let knowledgeText;
+        if (ALL_KEY_DATA_MISSING) {
+            console.warn("[RAG-Flow] Dati meteo chiave assenti. Query Vector DB saltata.");
+            // Fornisce un testo esplicito per l'AI che non causi rifiuto
+            knowledgeText = "CONTESTO MANCANTE: Non è stato possibile reperire i dati specifici sul meteo (vento, mare, pressione) per la tua zona. L'analisi dovrà concentrarsi sui consigli di pesca basati solo sulle condizioni stagionali/lunari, e specificare che l'assenza di dati richiede cautela.";
+        } else {
+            // 3. [RAG STEP] Query the vector DB con i dati disponibili. 
+            console.log(`[RAG-Flow] Generated query for Vector DB: "${weatherQuery}"`);
+            const relevantDocs = await queryKnowledgeBase(weatherQuery, 2); 
 
-        // Format the retrieved documents
-        const knowledgeText = relevantDocs.length > 0 
-            ? relevantDocs.map((doc, i) => `[Fatto Rilevante ${i + 1}]\n${doc}`).join('\n---\n') 
-            : "Nessun fatto specifico trovato, l'analisi si baserà sulla conoscenza generale e sui dati meteo disponibili.";
-        
+            // Formatta i documenti recuperati
+            knowledgeText = relevantDocs.length > 0 
+                ? relevantDocs.map((doc, i) => `[Fatto Rilevante ${i + 1}]\n${doc}`).join('\n---\n') 
+                : "Nessun fatto specifico trovato, l'analisi si baserà sulla conoscenza generale e sui dati meteo disponibili.";
+        }
         console.log(`[RAG-Flow] Retrieved knowledge:\n${knowledgeText}`);
         
         // 4. Prepare a clean weather summary for the AI prompt.
@@ -145,6 +160,8 @@ Dati Meteo-Marini per ${firstDay.locationName || 'località sconosciuta'} (${fir
         `.trim();
 
         // 5. Build the final prompt with formatting instructions
+        // NOTA: Ho RICONFIGURATO il prompt per includere la variabile knowledgeText,
+        // che ora può contenere l'istruzione di fallback specifica se i dati mancano.
         const prompt = `
 Sei Meteo Pesca AI, un esperto di pesca sportiva. Analizza i dati e i fatti pertinenti per dare un consiglio strategico.
 
@@ -155,7 +172,7 @@ Usa Markdown: '###' per i titoli, '---' per i separatori, '*' per le liste, '**'
 ${weatherTextForPrompt}
 --- FINE DATI ---
 
---- FATTI RILEVANTI DALLA KNOWLEDGE BASE ---
+--- FATTI RILEVANTI DALLA KNOWLEDGE BASE / CONTESTO DI EMERGENZA ---
 ${knowledgeText}
 --- FINE FATTI ---
 
