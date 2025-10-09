@@ -172,7 +172,7 @@ Sei Meteo Pesca AI, un esperto di pesca sportiva. Analizza i dati e i fatti pert
 
 --- ISTRUZIONI ---
 Genera l'analisi **esclusivamente in un singolo oggetto JSON** con la seguente struttura: {"analysis": "TUA ANALISI QUI"}.
-Il valore del campo 'analysis' deve contenere la tua analisi completa in Italiano, **massimo 350 caratteri**, formattata in Markdown ('###', '*', '**'). Non includere testo, spiegazioni o preamboli al di fuori dell'oggetto JSON.
+Il valore del campo 'analysis' deve contenere la tua analisi completa in Italiano, **massimo 750 caratteri**, formattata in Markdown ('###', '*', '**'). Non includere testo, spiegazioni o preamboli al di fuori dell'oggetto JSON.
 
 --- DATI METEO-MARINI ---
 ${weatherTextForPrompt}
@@ -191,8 +191,16 @@ In base all'analisi dei dati e dei fatti rilevanti, rispondi alla richiesta dell
         // 7. Parse the JSON result and extract the analysis string.
         let analysisResult = null;
         try {
-            // Assumiamo che generateAnalysis restituisca la stringa JSON generata.
-            const parsedJson = JSON.parse(analysisResultJsonText);
+            // FIX: Rimuoviamo i delimitatori del blocco codice Markdown (```json) prima del parsing
+            const cleanedJsonText = analysisResultJsonText
+                .replace(/```json\s*/g, '') // Rimuove ```json e spazi iniziali
+                .replace(/\s*```/g, '') // Rimuove spazi finali e ```
+                .trim();
+            
+            console.log(`[GeminiService] Cleaned JSON Text: ${cleanedJsonText}`);
+            
+            // Ora facciamo il parsing sulla stringa pulita
+            const parsedJson = JSON.parse(cleanedJsonText);
             analysisResult = parsedJson.analysis;
         } catch (e) {
             console.error(`[GeminiService] Failed to parse JSON response: ${e.message}`, analysisResultJsonText);
