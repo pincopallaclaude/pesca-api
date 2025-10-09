@@ -171,7 +171,7 @@ Dati Meteo-Marini per ${firstDay.locationName || 'località sconosciuta'} (${fir
 Sei Meteo Pesca AI, un esperto di pesca sportiva. Analizza i dati e i fatti pertinenti per dare un consiglio strategico.
 
 --- ISTRUZIONI DI FORMATTAZIONE ---
-Usa Markdown: '###' per i titoli, '---' per i separatori, '*' per le liste, '**' per highlight positivi e '~~' per avvertimenti. **Limita la tua risposta a un massimo di 500 caratteri** per un'analisi concisa e rapida. La tua risposta DEVE essere in Italiano e DEVE contenere testo significativo, anche in assenza di dati specifici.
+Usa Markdown: '###' per i titoli, '---' per i separatori, '*' per le liste, '**' per highlight positivi e '~~' per avvertimenti. **Limita la tua risposta a un massimo di 400 caratteri** per un'analisi **molto** concisa e rapida. La tua risposta DEVE essere in Italiano e DEVE contenere testo significativo, anche in assenza di dati specifici.
 
 --- DATI METEO-MARINI ---
 ${weatherTextForPrompt}
