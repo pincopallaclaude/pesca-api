@@ -173,34 +173,47 @@ app.post('/api/analyze-day', async (req, res) => {
         // PUNTO 2: Stampa il prompt
         console.log('\n--- [DEBUG-PROMPT] Prompt Inviato all\'AI ---\n', prompt);
 
-        // 6. Send to Gemini. It will now return a raw Markdown string.
-        const analysisResult = await generateAnalysis(prompt);
+        // 6. Send to Gemini.
+        const rawAiResponse = await generateAnalysis(prompt);
 
-        // PUNTO 3: Stampa la risposta grezza (che ora è solo Markdown)
-        console.log('\n--- [DEBUG-RESPONSE] Risposta Grezza AI (Markdown) ---\n', analysisResult);
+        // PUNTO 3: Stampa la risposta grezza
+        console.log('\n--- [DEBUG-RESPONSE] Risposta Grezza AI ---\n', rawAiResponse);
 
-        // 7. [SIMPLIFIED] No JSON parsing is needed anymore.
-        // The result is the analysis.
-
-        // 8. Validate the raw string response
-        if (!analysisResult || analysisResult.trim().length < 50) { 
-            const errorResponse = { status: 'error', message: "L'AI non ha potuto generare un'analisi significativa..." };
-            console.error("[GeminiService] L'analisi è vuota o insufficiente.");
-            return res.status(500).json(errorResponse); 
+        // 7. [ROBUST EXTRACTION] Manually extract the markdown content from the AI's JSON response.
+        let analysisResult = '';
+        try {
+            const cleanedJsonText = rawAiResponse.replace(/```json\s*/g, '').replace(/\s*```/g, '').trim();
+            const parsedJson = JSON.parse(cleanedJsonText);
+            if (parsedJson && parsedJson.analysis) {
+                analysisResult = parsedJson.analysis;
+                console.log('[Extraction] Successfully extracted "analysis" content from AI JSON.');
+            } else {
+                // Fallback if JSON is valid but has no 'analysis' field
+                analysisResult = rawAiResponse;
+            }
+        } catch (e) {
+            // If it's not JSON, assume the AI finally sent raw Markdown.
+            analysisResult = rawAiResponse;
+            console.log('[Extraction] Response was not JSON, assuming raw Markdown.');
         }
 
-        // 9. Truncate if needed (your logic is preserved)
+        // 8. Validate the extracted analysis string
+        if (!analysisResult || analysisResult.trim().length < 50) {
+            throw new Error("L'analisi estratta è vuota o insufficiente.");
+        }
+        
+        // 9. Truncate if necessary (your logic)
         let finalAnalysis = analysisResult.trim();
-        // ... (la tua logica di troncamento rimane qui)
+        // ... (tua logica di troncamento se necessaria) ...
 
-        // 10. Send back the response in the format the app expects ('data' field).
+        // 10. Send the FINAL CLEANED markdown string in the 'data' field.
         const successResponse = {
             status: 'success',
-            data: finalAnalysis, // Mettiamo la stringa Markdown direttamente nel campo 'data'
+            data: finalAnalysis,
         };
         console.log("[pesca-api] Sent 200 Success Response. Analysis length:", finalAnalysis.length);
-
         return res.status(200).json(successResponse);
+
 
     } catch (error) {
         console.error("[pesca-api] ERROR during RAG /api/analyze-day:", error.stack);
