@@ -16,7 +16,7 @@ const cors = require('cors'); // CORS middleware for handling cross-origin reque
 
 // Assicuriamoci di importare correttamente le nostre logiche
 const { fetchAndProcessForecast } = require('./lib/forecast-logic.js'); // Ora importa solo quello che serve
-const { myCache } = require('./lib/utils/cache.manager.js'); // Importa myCache dalla sua fonte corretta 
+const { myCache, analysisCache } = require('./lib/utils/cache.manager.js');
 const { generateAnalysis } = require('./lib/services/gemini.service.js'); // Funzione per la chiamata a Gemini
 const { queryKnowledgeBase } = require('./lib/services/vector.service.js'); // Import RAG corretto
 const autocompleteHandler = require('./api/autocomplete.js'); 
@@ -72,6 +72,34 @@ app.get('/api/update-cache', async (req, res) => {
 
 app.get('/api/autocomplete', autocompleteHandler);
 app.get('/api/reverse-geocode', reverseGeocodeHandler);
+
+// =========================================================================
+// --- P.H.A.N.T.O.M. Delivery Endpoint ---
+// =========================================================================
+app.post('/api/get-analysis', (req, res) => {
+    try {
+        const { lat, lon } = req.body;
+        if (!lat || !lon) {
+            return res.status(400).json({ status: 'error', message: 'Coordinate mancanti.' });
+        }
+
+        const normalizedLocation = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
+        const cacheKey = `analysis-${normalizedLocation}`;
+        
+        const cachedAnalysis = analysisCache.get(cacheKey);
+
+        if (cachedAnalysis) {
+            // Risposta istantanea se l'analisi è pronta
+            res.status(200).json({ status: 'ready', data: cachedAnalysis });
+        } else {
+            // L'analisi non è ancora pronta, il frontend dovrà usare il fallback (streaming)
+            res.status(202).json({ status: 'pending', message: 'Analisi in elaborazione.' });
+        }
+    } catch (error) {
+        console.error("[GetAnalysis Endpoint] Errore:", error.message);
+        res.status(500).json({ status: 'error', message: 'Errore interno del server.' });
+    }
+});
 
 
 // =========================================================================
