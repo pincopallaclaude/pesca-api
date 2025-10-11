@@ -77,7 +77,7 @@ app.get('/api/reverse-geocode', reverseGeocodeHandler);
 // --- ENDPOINT PER L'ANALISI IA (CON DEBUG RAG/LLM) ---
 // =========================================================================
 app.post('/api/analyze-day', async (req, res) => {
-    console.log(`[pesca-api] [${new Date().toISOString()}] Received RAG request.`);
+    console.log(`[RAG-Request] Received request.`);
  
     try {
         const { lat, lon, userQuery } = req.body; 
@@ -87,9 +87,20 @@ app.post('/api/analyze-day', async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Latitude and longitude are required.' });
         }
         
-        // 1. Fetch real weather data
-        const locationCoords = `${lat},${lon}`;
-        const fullResponse = await fetchAndProcessForecast(locationCoords);
+        // 1. [THE FIX] We get data from the CACHE, we don't re-fetch everything.
+        // We build the same cache key that /api/forecast would use.
+        const normalizedLocation = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
+        const cacheKey = `forecast-data-v-refactored-${normalizedLocation}`; // Match the key from forecast-logic.js
+        
+        let fullResponse = myCache.get(cacheKey);
+
+        // If cache is empty (e.g., first ever load, or expired), we must fetch it.
+        // This makes the endpoint robust.
+        if (!fullResponse) {
+            console.warn(`[RAG-Flow] Cache MISS for analysis. Forcing a data fetch for ${normalizedLocation}. This should be rare.`);
+            fullResponse = await fetchAndProcessForecast(`${lat},${lon}`);
+        }
+        
         const forecastDataArray = fullResponse.forecast || [];
         
         const NOT_SPECIFIED = 'Informazione non disponibile'; 
