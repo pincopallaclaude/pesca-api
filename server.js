@@ -139,7 +139,13 @@ app.post('/api/analyze-day', async (req, res) => {
         console.log(knowledgeText);
         console.log('----------------------------------------------------');
         
-        const weatherTextForPrompt = `Dati Meteo-Marini per ${firstDay.locationName || 'località sconosciuta'}...`.trim(); // Your template is preserved
+        const weatherTextForPrompt = `
+            Dati Meteo-Marini per ${firstDay.locationName || 'località sconosciuta'} (${firstDay.giornoData || 'oggi'}):
+            - Condizioni: ${firstDay.weatherDesc || 'N/A'}, Temp: ${firstDay.tempMinMax || 'N/A'}
+            - Vento: ${firstDay.ventoDati || 'N/A'}, Mare: ${firstDay.mare || 'N/A'}
+            - Pressione: ${firstDay.pressione || 'N/A'}, Acqua: ${(firstDay.currentHourData && firstDay.currentHourData.waterTemperature) || 'N/A'}C
+            - Luna: ${firstDay.moonPhase || 'N/A'}, Maree: Alta ${firstDay.altaMarea || 'N/A'}, Bassa ${firstDay.bassaMarea || 'N/A'}
+        `.trim();
         const prompt = `
             RUOLO: Sei Meteo Pesca AI, un analista esperto di pesca sportiva.
 
