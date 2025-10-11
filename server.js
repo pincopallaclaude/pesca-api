@@ -15,7 +15,8 @@ const path = require('path');
 const cors = require('cors'); // CORS middleware for handling cross-origin requests
 
 // Assicuriamoci di importare correttamente le nostre logiche
-const { fetchAndProcessForecast, myCache } = require('./lib/forecast-logic.js'); 
+const { fetchAndProcessForecast } = require('./lib/forecast-logic.js'); // Ora importa solo quello che serve
+const { myCache } = require('./lib/utils/cache.manager.js'); // Importa myCache dalla sua fonte corretta 
 const { generateAnalysis } = require('./lib/services/gemini.service.js'); // Funzione per la chiamata a Gemini
 const { queryKnowledgeBase } = require('./lib/services/vector.service.js'); // Import RAG corretto
 const autocompleteHandler = require('./api/autocomplete.js'); 
