@@ -140,7 +140,29 @@ app.post('/api/analyze-day', async (req, res) => {
         console.log('----------------------------------------------------');
         
         const weatherTextForPrompt = `Dati Meteo-Marini per ${firstDay.locationName || 'località sconosciuta'}...`.trim(); // Your template is preserved
-        const prompt = `Sei Meteo Pesca AI...`.trim(); // Your template is preserved
+        const prompt = `
+            RUOLO: Sei Meteo Pesca AI, un analista esperto di pesca sportiva.
+
+            OBIETTIVO: Analizza i dati forniti per generare un'analisi di pesca strategica e concisa in lingua Italiana.
+
+            DATI METEO-MARINI FORNITI:
+            ${weatherTextForPrompt}
+
+            FATTI RILEVANTI DALLA KNOWLEDGE BASE:
+            ${knowledgeText}
+
+            ISTRUZIONI DI FORMATTAZIONE OBBLIGATORIE:
+            La tua risposta DEVE essere solo il testo dell'analisi, formattato in Markdown.
+            - Usa '###' per i titoli delle sezioni.
+            - Usa '*' per gli elenchi puntati.
+            - Evidenzia i concetti molto positivi con '**'.
+            - Evidenzia gli avvertimenti o i consigli negativi con '~~'.
+            - NON aggiungere JSON, preamboli o altre spiegazioni. Rispondi solo con l'analisi.
+
+            DOMANDA DELL'UTENTE: "${finalUserQuery}"
+
+            Adesso, basandoti su TUTTO quanto sopra, genera l'analisi.
+        `.trim();
 
         console.log('\n--- [DEBUG-PROMPT] Prompt Inviato all\'AI ---');
         console.log(prompt);
