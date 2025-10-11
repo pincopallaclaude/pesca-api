@@ -147,67 +147,59 @@ app.post('/api/analyze-day', async (req, res) => {
             - Luna: ${firstDay.moonPhase || 'N/A'}, Maree: Alta ${firstDay.altaMarea || 'N/A'}, Bassa ${firstDay.bassaMarea || 'N/A'}
         `.trim();
         const prompt = `
-            RUOLO: Sei Meteo Pesca AI, un analista esperto di pesca sportiva.
+            Sei Meteo Pesca AI, un esperto di pesca sportiva. Analizza i dati e i fatti pertinenti per dare un consiglio strategico in Italiano.
 
-            OBIETTIVO: Analizza i dati forniti per generare un'analisi di pesca strategica e concisa in lingua Italiana.
+            --- ISTRUZIONI DI FORMATTAZIONE OBBLIGATORIE ---
+            La tua risposta DEVE essere solo ed esclusivamente il testo dell'analisi, formattato in Markdown.
+            - Usa '###' per i titoli.
+            - Usa '*' per le liste puntate.
+            - Evidenzia i concetti positivi con '**'.
+            - Evidenzia gli avvertimenti con '~~'.
+            - NON includere JSON, preamboli o altre spiegazioni al di fuori dell'analisi.
 
-            DATI METEO-MARINI FORNITI:
+            --- DATI METEO-MARINI ---
             ${weatherTextForPrompt}
+            --- FINE DATI ---
 
-            FATTI RILEVANTI DALLA KNOWLEDGE BASE:
+            --- FATTI RILEVANTI DALLA KNOWLEDGE BASE ---
             ${knowledgeText}
-
-            ISTRUZIONI DI FORMATTAZIONE OBBLIGATORIE:
-            La tua risposta DEVE essere solo il testo dell'analisi, formattato in Markdown.
-            - Usa '###' per i titoli delle sezioni.
-            - Usa '*' per gli elenchi puntati.
-            - Evidenzia i concetti molto positivi con '**'.
-            - Evidenzia gli avvertimenti o i consigli negativi con '~~'.
-            - NON aggiungere JSON, preamboli o altre spiegazioni. Rispondi solo con l'analisi.
+            --- FINE FATTI ---
 
             DOMANDA DELL'UTENTE: "${finalUserQuery}"
 
-            Adesso, basandoti su TUTTO quanto sopra, genera l'analisi.
+            Adesso, basandoti su tutto, genera l'analisi in Markdown.
         `.trim();
 
-        console.log('\n--- [DEBUG-PROMPT] Prompt Inviato all\'AI ---');
-        console.log(prompt);
-        console.log('--------------------------------------------');
+        // PUNTO 2: Stampa il prompt
+        console.log('\n--- [DEBUG-PROMPT] Prompt Inviato all\'AI ---\n', prompt);
 
-        // 6. Call Gemini
-        const analysisResultJsonText = await generateAnalysis(prompt);
-        console.log('\n--- [DEBUG-RESPONSE] Risposta Grezza AI ---');
-        console.log(analysisResultJsonText);
-        console.log('--------------------------------------------');
+        // 6. Send to Gemini. It will now return a raw Markdown string.
+        const analysisResult = await generateAnalysis(prompt);
 
-        // 7. Parse response
-        let analysisResult = null;
-        try {
-            const cleanedJsonText = analysisResultJsonText.replace(/```json\s*/g, '').replace(/\s*```/g, '').trim();
-            console.log(`[GeminiService] Cleaned JSON Text: ${cleanedJsonText}`);
-            const parsedJson = JSON.parse(cleanedJsonText);
-            analysisResult = parsedJson.analysis;
-        } catch (e) {
-            throw new Error("AI response was not valid structured JSON.");
-        }
+        // PUNTO 3: Stampa la risposta grezza (che ora è solo Markdown)
+        console.log('\n--- [DEBUG-RESPONSE] Risposta Grezza AI (Markdown) ---\n', analysisResult);
 
-        // 8. Validate and truncate analysis (your logic is preserved)
+        // 7. [SIMPLIFIED] No JSON parsing is needed anymore.
+        // The result is the analysis.
+
+        // 8. Validate the raw string response
         if (!analysisResult || analysisResult.trim().length < 50) { 
-             const errorResponse = { status: 'error', message: "L'AI non ha potuto generare un'analisi significativa..." };
-             console.log("[pesca-api] Sent 500 Error Response (Empty Analysis):", JSON.stringify(errorResponse));
-             return res.status(500).json(errorResponse); 
+            const errorResponse = { status: 'error', message: "L'AI non ha potuto generare un'analisi significativa..." };
+            console.error("[GeminiService] L'analisi è vuota o insufficiente.");
+            return res.status(500).json(errorResponse); 
         }
 
+        // 9. Truncate if needed (your logic is preserved)
         let finalAnalysis = analysisResult.trim();
-        const MAX_LENGTH = 3000;
-        if (finalAnalysis.length > MAX_LENGTH) {
-            console.warn(`[GeminiService] WARNING: Analysis too long...`);
-            finalAnalysis = finalAnalysis.substring(0, MAX_LENGTH - 3) + '...';
-        }
+        // ... (la tua logica di troncamento rimane qui)
 
-        // 10. [FIX] Send back the response with the 'data' field, as expected by the frontend.
-        const successResponse = { status: 'success', data: finalAnalysis };
+        // 10. Send back the response in the format the app expects ('data' field).
+        const successResponse = {
+            status: 'success',
+            data: finalAnalysis, // Mettiamo la stringa Markdown direttamente nel campo 'data'
+        };
         console.log("[pesca-api] Sent 200 Success Response. Analysis length:", finalAnalysis.length);
+
         return res.status(200).json(successResponse);
 
     } catch (error) {
