@@ -16,7 +16,7 @@ const cors = require('cors'); // CORS middleware for handling cross-origin reque
 
 // Assicuriamoci di importare correttamente le nostre logiche
 const { fetchAndProcessForecast } = require('./lib/forecast-logic.js'); // Ora importa solo quello che serve
-const { myCache } = require('./lib/utils/cache.manager.js'); // Importa myCache dalla sua fonte corretta 
+const { myCache, analysisCache } = require('./lib/utils/cache.manager.js');
 const { generateAnalysis } = require('./lib/services/gemini.service.js'); // Funzione per la chiamata a Gemini
 const { queryKnowledgeBase } = require('./lib/services/vector.service.js'); // Import RAG corretto
 const autocompleteHandler = require('./api/autocomplete.js'); 
@@ -72,6 +72,33 @@ app.get('/api/update-cache', async (req, res) => {
 
 app.get('/api/autocomplete', autocompleteHandler);
 app.get('/api/reverse-geocode', reverseGeocodeHandler);
+
+// =========================================================================
+// --- [P.H.A.N.T.O.M. FASE 1] Endpoint di recupero analisi pre-generata ---
+// =========================================================================
+app.post('/api/get-analysis', (req, res) => {
+    try {
+        const { lat, lon } = req.body;
+        if (!lat || !lon) {
+            return res.status(400).json({ status: 'error', message: 'Coordinate mancanti.' });
+        }
+
+        const cacheKey = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
+        const cachedAnalysis = analysisCache.get(cacheKey);
+
+        if (cachedAnalysis) {
+            console.log(`[Analysis-Endpoint] Cache HIT per ${cacheKey}. Invio analisi pre-generata.`);
+            res.status(200).json({ status: 'ready', data: cachedAnalysis });
+        } else {
+            console.log(`[Analysis-Endpoint] Cache MISS per ${cacheKey}. Il client dovrà usare lo streaming.`);
+            // Il client riceve 'pending' e sa che deve avviare lo streaming come fallback.
+            res.status(200).json({ status: 'pending' });
+        }
+    } catch (error) {
+        console.error("[Analysis-Endpoint] Errore critico:", error.stack);
+        res.status(500).json({ status: 'error', message: 'Errore interno nel server.' });
+    }
+});
 
 
 // =========================================================================
