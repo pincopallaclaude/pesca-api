@@ -208,8 +208,11 @@ app.post('/api/analyze-day-fallback', async (req, res) => {
         try {
             const cleanedJsonText = rawAiResponse.replace(/^```json\s*/, '').replace(/```$/, '').trim();
             const parsedJson = JSON.parse(cleanedJsonText);
-            if (parsedJson && (parsedJson.analysis || parsedJson.analisi_markdown)) {
-                finalAnalysis = parsedJson.analysis || parsedJson.analisi_markdown;
+            // Cerca la prima chiave che contiene "analisi" o "analysis"
+            const analysisKey = Object.keys(parsedJson).find(key => key.toLowerCase().includes('analisi') || key.toLowerCase().includes('analysis'));
+
+            if (analysisKey) {
+                finalAnalysis = parsedJson[analysisKey];
             } else {
                 finalAnalysis = rawAiResponse;
             }
