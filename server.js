@@ -149,7 +149,13 @@ app.post('/api/analyze-day-fallback', async (req, res) => {
         const knowledgeText = relevantDocs.length > 0 
             ? relevantDocs.map((doc, i) => `[Fatto Rilevante ${i + 1}]\n${doc}`).join('\n---\n') 
             : "Nessun fatto specifico trovato...";
-        
+
+        // Debugging and Prompt Building
+        console.log(`\n--- [DEBUG-RAG] Output Database Vettoriale (${relevantDocs.length} Docs) ---`);
+        console.log(knowledgeText);
+        console.log('----------------------------------------------------');
+            
+
         const waterTemp = (firstDay.hourly && firstDay.hourly[0] && firstDay.hourly[0].waterTemperature !== undefined) 
             ? `${firstDay.hourly[0].waterTemperature}°C`
             : 'N/A';
@@ -186,7 +192,13 @@ app.post('/api/analyze-day-fallback', async (req, res) => {
             Adesso, basandoti su tutto, genera l'analisi in Markdown.
         `.trim();
 
+        // PUNTO 2: Stampa il prompt
+        console.log('\n--- [DEBUG-PROMPT] Prompt Inviato all\'AI ---\n', prompt);
+
         const rawAiResponse = await generateAnalysis(prompt);
+
+        // PUNTO 3: Stampa la risposta grezza
+        console.log('\n--- [DEBUG-RESPONSE] Risposta Grezza AI ---\n', rawAiResponse);
 
         let finalAnalysis = rawAiResponse;
         try {
