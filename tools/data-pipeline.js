@@ -8,11 +8,19 @@ const { embeddingModel, populateIndex } = require('../lib/services/vector.servic
 // --- CONFIGURAZIONE ---
 // Lista di query di ricerca per trovare conoscenza sulla pesca.
 const SEARCH_QUERIES = [
-    "come pescare la spigola a spinning dalla spiaggia",
-    "tecniche di pesca al serra in foce",
-    "inneschi per orata rockfishing",
-    "migliori artificiali per barracuda sottocosta",
-    "come pescare il sarago da riva",
+    // --- Livello 1: Query Iper-Specifiche per la zona di interesse (Posillipo/Napoli) ---
+    "tecniche di pesca spigola molo Posillipo",
+    "spinning al serra foce Sebeto Napoli",
+    "pesca orata scogliera Posillipo",
+    "artificiali per barracuda golfo di Napoli",
+    "pesca sarago notturna molo Napoli",
+
+    // --- Livello 2: Query Generali (fallback di conoscenza) ---
+    "come pescare la spigola a spinning da moli e scogliere",
+    "migliori esche per serra in foce",
+    "inneschi per orata su fondale misto roccioso",
+    "recupero artificiali per barracuda sottocosta",
+    "pasturazione per saraghi da molo",
 ];
 
 const CHUNK_SIZE = 200; // Riduciamo leggermente per i riassunti
@@ -134,4 +142,4 @@ async function main() {
     console.log('--- [DATA PIPELINE END] ---');
 }
 
-main();
+module.exports = { runDataPipeline: main };

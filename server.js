@@ -21,6 +21,7 @@ const { generateAnalysis } = require('./lib/services/gemini.service.js'); // Fun
 const { queryKnowledgeBase } = require('./lib/services/vector.service.js'); // Import RAG corretto
 const autocompleteHandler = require('./api/autocomplete.js'); 
 const reverseGeocodeHandler = require('./api/reverse-geocode.js');
+const { runDataPipeline } = require('./tools/data-pipeline.js');
 
 const app = express();
 // Usiamo la porta definita nel file essistente:
@@ -234,7 +235,16 @@ app.post('/api/analyze-day-fallback', async (req, res) => {
 
 
 // --- AVVIO DEL SERVER ---
-app.listen(PORT, () => {
-    console.log(`Server listening on port ${PORT}`);
-    console.log(`Endpoint RAG ATTIVO: POST http://localhost:${PORT}/api/analyze-day`);
-});
+async function startServer() {
+    console.log('[SERVER STARTUP] Populating vector database...');
+    await runDataPipeline();
+    console.log('[SERVER STARTUP] Vector database populated.');
+    
+    app.listen(PORT, () => {
+        console.log(`Server listening on port ${PORT}`);
+        console.log(`Endpoint PHANTOM ATTIVO: POST http://localhost:${PORT}/api/get-analysis`);
+        console.log(`Endpoint FALLBACK ATTIVO: POST http://localhost:${PORT}/api/analyze-day-fallback`);
+    });
+}
+
+startServer();
