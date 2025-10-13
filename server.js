@@ -228,6 +228,10 @@ app.post('/api/analyze-day-fallback', async (req, res) => {
             status: 'success',
             data: finalAnalysis.trim(),
         };
+        const analysisCacheKey = `analysis-v1-${normalizedLocation}`; // Usa un nome diverso per non confliggere
+        analysisCache.set(analysisCacheKey, successResponse);
+        console.log("[RAG-Fallback] Analysis cached for future requests.");
+                
         console.log("[RAG-Fallback] Sent 200 Success Response. Analysis length:", finalAnalysis.trim().length);
         return res.status(200).json(successResponse);
 
