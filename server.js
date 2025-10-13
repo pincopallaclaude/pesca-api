@@ -103,7 +103,7 @@ app.post('/api/get-analysis', (req, res) => {
 // =========================================================================
 // --- [FALLBACK] ENDPOINT ON-DEMAND (usato solo in caso di cache miss) ---
 // =========================================================================
-app.post('/api/analyze-day-fallback', async (req, res) => {
+app.post('/api/analyze-day-fallback', express.json({ limit: '5mb' }), async (req, res) => {
     console.log(`[RAG-Fallback] Received on-demand request.`);
  
     try {
