@@ -103,7 +103,7 @@ app.post('/api/get-analysis', (req, res) => {
 // =========================================================================
 // --- [FALLBACK] ENDPOINT ON-DEMAND (usato solo in caso di cache miss) ---
 // =========================================================================
-app.post('/api/analyze-day-fallback', express.json({ limit: '5mb' }), async (req, res) => {
+app.post('/api/analyze-day-fallback', async (req, res) => {
     console.log(`[RAG-Fallback] Received on-demand request.`);
  
     try {
@@ -117,11 +117,14 @@ app.post('/api/analyze-day-fallback', express.json({ limit: '5mb' }), async (req
         const normalizedLocation = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
         const cacheKey = `forecast-data-v-refactored-${normalizedLocation}`;
         
+        // La logica torna a essere "server-first": controlla la cache e, se manca, fa il fetch.
         let fullResponse = myCache.get(cacheKey);
 
         if (!fullResponse) {
             console.warn(`[RAG-Fallback] Cache MISS for forecast data. Forcing fetch for ${normalizedLocation}.`);
             fullResponse = await fetchAndProcessForecast(`${lat},${lon}`);
+        } else {
+            console.log('[RAG-Fallback] Cache HIT for forecast data. Proceeding directly to analysis.');
         }
         
         const forecastDataArray = fullResponse.forecast || [];
