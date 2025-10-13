@@ -12,11 +12,11 @@ if (!process.env.GEMINI_API_KEY) {
 
 const express = require('express');
 const path = require('path');
-const cors = require('cors'); // CORS middleware for handling cross-origin requests
+const cors = require('cors'); // CORS middleware for handling cross-origin requestss
 
 // Assicuriamoci di importare correttamente le nostre logiche
-const { fetchAndProcessForecast } = require('./lib/forecast-logic.js'); // Ora importa solo quello che serve
-const { myCache } = require('./lib/utils/cache.manager.js'); // Importa myCache dalla sua fonte corretta 
+const { fetchAndProcessForecast } = require('./lib/forecast-logic.js'); // Ora importa solo quello che serve 
+const { myCache, analysisCache } = require('./lib/utils/cache.manager.js'); // Importa ENTRAMBE le cache
 const { generateAnalysis } = require('./lib/services/gemini.service.js'); // Funzione per la chiamata a Gemini
 const { queryKnowledgeBase } = require('./lib/services/vector.service.js'); // Import RAG corretto
 const autocompleteHandler = require('./api/autocomplete.js'); 
