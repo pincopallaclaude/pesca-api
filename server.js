@@ -91,7 +91,7 @@ app.post('/api/get-analysis', (req, res) => {
     if (cachedAnalysis) {
         console.log(`[Phantom-API] ✅ Cache HIT per analisi ${normalizedLocation}. Risposta istantanea.`);
         // Lo stato 'ready' dice al client che l'analisi è pronta e la invia
-        res.status(200).json({ status: 'ready', analysis: cachedAnalysis });
+        res.status(200).json({ status: 'success', data: cachedAnalysis });
     } else {
         console.log(`[Phantom-API] ⏳ Cache MISS per analisi ${normalizedLocation}. Il client userà il fallback.`);
         // Lo stato 'pending' dice al client di chiamare l'endpoint di fallback
