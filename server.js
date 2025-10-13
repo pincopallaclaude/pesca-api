@@ -208,8 +208,10 @@ app.post('/api/analyze-day-fallback', async (req, res) => {
         try {
             const cleanedJsonText = rawAiResponse.replace(/^```json\s*/, '').replace(/```$/, '').trim();
             const parsedJson = JSON.parse(cleanedJsonText);
-            if (parsedJson && parsedJson.analysis) {
-                finalAnalysis = parsedJson.analysis;
+            if (parsedJson && (parsedJson.analysis || parsedJson.analisi_markdown)) {
+                finalAnalysis = parsedJson.analysis || parsedJson.analisi_markdown;
+            } else {
+                finalAnalysis = rawAiResponse;
             }
         } catch (e) {
             // Se non è JSON, assumiamo sia Markdown grezzo, va bene.
