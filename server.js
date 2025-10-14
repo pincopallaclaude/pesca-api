@@ -18,10 +18,9 @@ const cors = require('cors'); // CORS middleware for handling cross-origin reque
 const { fetchAndProcessForecast } = require('./lib/forecast-logic.js'); // Ora importa solo quello che serve 
 const { myCache, analysisCache } = require('./lib/utils/cache.manager.js'); // Importa ENTRAMBE le cache
 const { generateAnalysis } = require('./lib/services/gemini.service.js'); // Funzione per la chiamata a Gemini
-const { queryKnowledgeBase } = require('./lib/services/vector.service.js'); // Import RAG corretto
+const { queryKnowledgeBase, loadKnowledgeBaseFromFile } = require('./lib/services/vector.service.js'); // Importa anche il loader
 const autocompleteHandler = require('./api/autocomplete.js'); 
 const reverseGeocodeHandler = require('./api/reverse-geocode.js');
-const { runDataPipeline } = require('./tools/data-pipeline.js');
 
 const app = express();
 // Usiamo la porta definita nel file essistente:
@@ -245,9 +244,8 @@ app.post('/api/analyze-day-fallback', async (req, res) => {
 
 // --- AVVIO DEL SERVER ---
 async function startServer() {
-    console.log('[SERVER STARTUP] Populating vector database...');
-    await runDataPipeline();
-    console.log('[SERVER STARTUP] Vector database populated.');
+    console.log('[SERVER STARTUP] Loading knowledge base from file...');
+    loadKnowledgeBaseFromFile();
     
     app.listen(PORT, () => {
         console.log(`Server listening on port ${PORT}`);
