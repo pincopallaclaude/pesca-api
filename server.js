@@ -242,7 +242,7 @@ app.post('/api/analyze-day-fallback', async (req, res) => {
 });
 
 
-// --- AVVIO DEL SERVER ---
+// --- AVVIO DEL SERVER  ---
 async function startServer() {
     console.log('[SERVER STARTUP] Loading knowledge base from file...');
     loadKnowledgeBaseFromFile();
