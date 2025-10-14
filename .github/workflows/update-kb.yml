@@ -9,6 +9,10 @@ on:
     paths:
       - 'sources.json'
 
+# Concedi i permessi di scrittura al workflow per fare il commit
+permissions:
+  contents: write
+
 jobs:
   update-knowledge-base:
     runs-on: ubuntu-latest # Usa l'ultima versione stabile di Ubuntu
@@ -24,7 +28,7 @@ jobs:
         with:
           node-version: '20' # Usa la versione 20 di Node.js
 
-      # Step 3: Installa le dipendenze del progetto
+      # Step 3: Installa le dipendenze del progettogti 
       - name: Install dependencies
         run: npm install
 
