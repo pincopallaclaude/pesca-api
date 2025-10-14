@@ -1,27 +1,12 @@
 // tools/data-pipeline.js
+
 require('dotenv').config();
 console.log('[DEBUG] Variabili d\'ambiente caricate:', process.env);
 const SerpApi = require('google-search-results-nodejs');
 const search = new SerpApi.GoogleSearch();
-const { embeddingModel, populateIndex } = require('../lib/services/vector.service');
-
-// --- CONFIGURAZIONE ---
-// Lista di query di ricerca per trovare conoscenza sulla pesca.
-const SEARCH_QUERIES = [
-    // --- Livello 1: Query Iper-Specifiche per la zona di interesse (Posillipo/Napoli) ---
-    "tecniche di pesca spigola molo Posillipo",
-    "spinning al serra foce Sebeto Napoli",
-    "pesca orata scogliera Posillipo",
-    "artificiali per barracuda golfo di Napoli",
-    "pesca sarago notturna molo Napoli",
-
-    // --- Livello 2: Query Generali (fallback di conoscenza) ---
-    "come pescare la spigola a spinning da moli e scogliere",
-    "migliori esche per serra in foce",
-    "inneschi per orata su fondale misto roccioso",
-    "recupero artificiali per barracuda sottocosta",
-    "pasturazione per saraghi da molo",
-];
+const { embeddingModel, populateIndex, saveKnowledgeBaseToFile } = require('../lib/services/vector.service');
+const fs = require('fs');
+const path = require('path');
 
 const CHUNK_SIZE = 200; // Riduciamo leggermente per i riassunti
 
@@ -123,6 +108,15 @@ async function seedChunks(chunks) {
 async function main() {
     console.log('--- [DATA PIPELINE START] ---');
     
+    const sourcesPath = path.join(__dirname, '..', 'sources.json');
+    if (!fs.existsSync(sourcesPath)) {
+        console.error(`[PIPELINE-ERROR] Sources file not found at: ${sourcesPath}`);
+        return;
+    }
+    const sourcesFile = fs.readFileSync(sourcesPath, 'utf-8');
+    const { search_queries: SEARCH_QUERIES } = JSON.parse(sourcesFile);
+    console.log(`[PIPELINE-MAIN] Loaded ${SEARCH_QUERIES.length} search queries from sources.json.`);
+
     let allChunks = [];
 
     for (const query of SEARCH_QUERIES) {
@@ -138,8 +132,23 @@ async function main() {
     console.log(`[PIPELINE-MAIN] Total unique chunks to be seeded: ${uniqueChunks.length}`);
 
     await seedChunks(uniqueChunks);
+    saveKnowledgeBaseToFile();
 
     console.log('--- [DATA PIPELINE END] ---');
 }
+
+
+console.log('[DEBUG] Script execution reached the final part. Attempting to run main().');
+
+// Questo blocco esegue la funzione main() solo quando lo script
+// viene lanciato direttamente da Node.js.
+if (require.main === module) {
+    main().catch(err => {
+        console.error('[PIPELINE-FATAL] An unexpected error occurred:', err);
+        process.exit(1);
+    });
+}
+
+
 
 module.exports = { runDataPipeline: main };
