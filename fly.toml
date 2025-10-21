@@ -5,7 +5,7 @@ primary_region = 'ams'
 
 [build]
   dockerfile = 'Dockerfile'
-  builder = "builder-shared-iad" # <-- FORZA UN BUILDER IN UNA NUOVA REGIONE
+  BUILD_VERSION = "v7.0.4-rebuild-flag" # Aggiorniamo per invalidare la cache
   [build.args]
     BUILD_VERSION = "v7.0.3-force-iad-builder" 
 
