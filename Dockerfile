@@ -1,45 +1,37 @@
-# syntax = docker/dockerfile:1
-
-# Adjust NODE_VERSION as desired
-ARG NODE_VERSION=22.19.0
+# Usa una versione di Node.js LTS (Long Term Support) come base
+ARG NODE_VERSION=20
 FROM node:${NODE_VERSION}-slim AS base
 
 LABEL fly_launch_runtime="Node.js"
 
-# Node.js app lives here
+# Imposta la directory di lavoro all'interno del container
 WORKDIR /app
 
-# Set production environment
+# Imposta l'ambiente di produzione
 ENV NODE_ENV="production"
 
-
-# Throw-away build stage to reduce size of final image
+# Usa una build stage per installare le dipendenze
 FROM base AS build
+WORKDIR /app
 
-# Install packages needed to build node modules
-RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
+# Copia solo i file di definizione delle dipendenze per sfruttare la cache di Docker
+COPY package.json package-lock.json ./
 
-# Install node modules
-COPY package-lock.json package.json ./
-RUN npm ci
+# Installa solo le dipendenze di produzione
+RUN npm ci --omit=dev
 
-# Copy application code
+# Copia il resto del codice dell'applicazione
 COPY . .
 
-
-# Final stage for app image
+# --- Final Image ---
 FROM base
+WORKDIR /app
 
-# Install packages needed for deployment
-RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y chromium chromium-sandbox && \
-    rm -rf /var/lib/apt/lists /var/cache/apt/archives
-
-# Copy built application
+# Copia le dipendenze installate e il codice dalla build stage
 COPY --from=build /app /app
 
-# Start the server by default, this can be overwritten at runtime
-EXPOSE 3000
-ENV PUPPETEER_EXECUTABLE_PATH="/usr/bin/chromium"
+# La porta esposta deve corrispondere a quella su cui il server è in ascolto
+EXPOSE 8080
+
+# Comando per avviare l'applicazione
 CMD [ "npm", "run", "start" ]
