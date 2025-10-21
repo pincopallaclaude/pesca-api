@@ -1,0 +1,16 @@
+# Dockerfile.simple (versione finale robusta)
+
+# 1. Usa l'immagine "full" di Node.js, che contiene Python.
+FROM node:20
+
+# 2. Installa gli strumenti di compilazione necessari (make, g++, ecc.)
+RUN apt-get update && apt-get install -y build-essential
+
+# 3. Procedi con il resto del setup come prima
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --production
+COPY . .
+
+# 4. Usa il server di test
+CMD [ "npm", "run", "start" ]
