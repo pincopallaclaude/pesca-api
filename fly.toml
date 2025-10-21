@@ -1,13 +1,13 @@
-# fly.toml app configuration file generated for pesca-api-v5 on 2025-10-15T13:06:30+01:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# fly.toml app configuration file
 
 app = 'pesca-api-v5'
 primary_region = 'ams'
 
 [build]
-  dockerfile = 'Dockerfile.simple'
+  dockerfile = 'Dockerfile'
+  builder = "builder-shared-iad" # <-- FORZA UN BUILDER IN UNA NUOVA REGIONE
+  [build.args]
+    BUILD_VERSION = "v7.0.3-force-iad-builder" 
 
 [http_service]
   internal_port = 8080
