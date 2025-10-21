@@ -2,8 +2,8 @@
 
 import express from 'express';
 import { mcpClient } from '../lib/services/mcp-client.service.js';
-import { myCache, analysisCache } from '../lib/utils/cache.manager.js';
-import { fetchAndProcessForecast } from '../lib/forecast-logic.js'; // Importiamo per il fallback
+import { myCache, analysisCache } from '../utils/cache.manager.js';
+import { fetchAndProcessForecast } from '../forecast-logic.js'; // Importiamo per il fallback
 
 const router = express.Router();
 

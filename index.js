@@ -11,6 +11,7 @@ import analysisRoutes from './api/analysis.routes.js';
 import autocompleteHandler from './api/autocomplete.js';
 import reverseGeocodeHandler from './api/reverse-geocode.js';
 
+
 // Validazione delle variabili d'ambiente critiche
 if (!process.env.GEMINI_API_KEY) {
     console.error("FATAL ERROR: GEMINI_API_KEY non trovato!");

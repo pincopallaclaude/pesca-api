@@ -1,7 +1,8 @@
 // /api/forecast.routes.js
 
 import express from 'express';
-import { fetchAndProcessForecast } from '../lib/forecast-logic.js';
+import { fetchAndProcessForecast } from '../forecast-logic.js';
+
 
 const router = express.Router();
 
