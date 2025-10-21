@@ -1,12 +1,10 @@
-// index.js
-
 import 'dotenv/config'; // Carica le variabili d'ambiente all'inizio
 import express from 'express';
 import cors from 'cors';
-import { mcpClient } from './lib/services/mcp-client.service.js';
+import { mcpClient } from './services/mcp-client.service.js';
 
 // Importa le rotte
-import forecastRoutes from './api/forecast.routes.js'; // Assumendo che le altre rotte siano qui
+import forecastRoutes from './api/forecast.routes.js';
 import analysisRoutes from './api/analysis.routes.js';
 import autocompleteHandler from './api/autocomplete.js';
 import reverseGeocodeHandler from './api/reverse-geocode.js';
