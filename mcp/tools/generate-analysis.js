@@ -1,49 +1,69 @@
-// // mcp/tools/generate-analysis.js
+// /mcp/tools/generate-analysis.js
 
-import { geminiService } from '../../lib/services/gemini.service.js';
-import { vectorService } from '../../lib/services/vector.service.js';
+import { queryKnowledgeBase } from '../../lib/services/vector.service.js';
+import { generateAnalysis as geminiGenerate } from '../../lib/services/gemini.service.js';
 
 export async function generateAnalysis({ weatherData, location }) {
-  try {
-    const searchQuery = `Consigli di pesca per una giornata con queste condizioni a ${location}: vento ${weatherData.hourly.windspeed_10m[0]}km/h, stato del mare con onde alte ${weatherData.hourly.wave_height[0]}m, temperatura acqua ${weatherData.hourly.sea_surface_temperature[0]}°C.`;
+  const startTime = Date.now();
+  
+  try {
+    // MODIFICA: Uso console.error per il logging dei tool
+    console.error(`[MCP] 🎣 Analisi per ${location}`);
+    
+    // 1. RAG: Cerca documenti rilevanti
+    const searchQuery = `
+      Condizioni: vento ${weatherData.wind?.speed || 'N/D'}km/h, 
+      mare ${weatherData.sea?.state || 'N/D'}, 
+      temp acqua ${weatherData.seaTemp || 'N/D'}°C, 
+      località ${location}
+    `;
+    
+    const relevantDocs = await queryKnowledgeBase(searchQuery, 5);
+    // MODIFICA: Uso console.error
+    console.error(`[MCP] ✅ Trovati ${relevantDocs.length} documenti rilevanti`);
+    
+    // 2. Costruisci prompt arricchito
+    const enrichedPrompt = `
+# Analisi Pesca per ${location}
 
-    const relevantDocs = await vectorService.searchSimilar(searchQuery, 5);
+## Dati Meteo-Marini
+${JSON.stringify(weatherData, null, 2)}
 
-    const enrichedPrompt = `Sei un esperto di pesca e assistente AI per l'app Meteo Pesca.
-# Analisi di Pesca per ${location}
-
-## Dati Meteo-Marini Rilevanti
-- Vento: ${weatherData.hourly.windspeed_10m[0]} km/h
-- Altezza Onde: ${weatherData.hourly.wave_height[0]} m
-- Temperatura Acqua: ${weatherData.hourly.sea_surface_temperature[0]} °C
-- Pressione: ${weatherData.hourly.pressure_msl[0]} hPa
-
-## Conoscenza Rilevante dalla Knowledge Base
-${relevantDocs.map((doc, i) => `---
-### Documento #${i + 1} (Rilevanza: ${(doc.similarity * 100).toFixed(0)}%)
-${doc.content}
+## Conoscenza dalla Knowledge Base
+${relevantDocs.map((doc, i) => `
+### Documento ${i + 1}
+${doc}
 `).join('\n')}
----
 
 ## Istruzioni
-Basandoti **esclusivamente** sui dati meteo forniti e sulla conoscenza estratta, genera un'analisi di pesca dettagliata e pratica in formato Markdown. La tua analisi deve includere:
-1.  **Valutazione Sintetica:** Un breve paragrafo che riassume le condizioni generali (es. "Condizioni ideali per...", "Giornata impegnativa a causa di...").
-2.  **Specie Target Consigliate:** Una lista puntata delle specie più probabili da insidiare, motivando la scelta in base alle condizioni e alla knowledge base.
-3.  **Tecniche e Strategie:** Consigli pratici su tecniche di pesca (es. spinning, bolentino), basandoti sui documenti trovati.
-4.  **Consiglio sull'Attrezzatura:** Suggerimenti su esche, fili o montature menzionate nella knowledge base.
+Genera analisi dettagliata in Markdown con:
+1. Valutazione condizioni generali
+2. Specie target consigliate
+3. Tecniche specifiche (cita KB quando pertinente)
+4. Esche/attrezzatura
+5. Orari ottimali
 
-Sii conciso, pratico e usa un tono incoraggiante. Fai riferimento diretto ai documenti quando fornisci un consiglio specifico.`;
+Stile professionale ma accessibile.
+`;
 
-    const analysis = await geminiService.generateContent(enrichedPrompt);
-
-    return {
-      content: [{ type: 'text', text: analysis }],
-      metadata: {
-        documentsUsed: relevantDocs.length,
-        generatedAt: new Date().toISOString(),
-      },
-    };
-  } catch (error) {
-    throw new Error(`Analysis generation failed: ${error.message}`);
-  }
+    // 3. Genera con Gemini
+    const analysis = await geminiGenerate(enrichedPrompt);
+    
+    const elapsed = Date.now() - startTime;
+    // MODIFICA: Uso console.error
+    console.error(`[MCP] 🏁 Completato in ${elapsed}ms`);
+    
+    return {
+      content: [{ type: 'text', text: analysis }],
+      metadata: {
+        documentsUsed: relevantDocs.length,
+        generatedAt: new Date().toISOString(),
+        timingMs: elapsed
+      }
+    };
+    
+  } catch (error) {
+    console.error(`[MCP] ❌ Errore:`, error);
+    throw new Error(`Generazione fallita: ${error.message}`);
+  }
 }

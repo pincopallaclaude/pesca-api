@@ -1,22 +1,6 @@
-# fly.toml app configuration file
-
-app = 'pesca-api-v5'
-primary_region = 'ams'
-
-# Rimuovi la sezione [build] se il tuo file si chiama "Dockerfile"
-# Altrimenti, assicurati che il nome corrisponda.
-[build]
-  dockerfile = 'Dockerfile' # Assumendo che il file sia stato rinominato
-
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = 'stop'
-  auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
-
-[[vm]]
-  memory = '256mb'
-  cpu_kind = 'shared'
-  cpus = 1
+/.git
+/node_modules
+.dockerignore
+.env
+Dockerfile
+fly.toml

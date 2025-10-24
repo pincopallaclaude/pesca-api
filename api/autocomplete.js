@@ -1,37 +1,39 @@
-const axios = require('axios');
+// /api/autocomplete.js
 
-module.exports = async (req, res) => {
-    // Leggiamo il testo da cercare dalla query string (?text=...)
-    const { text } = req.query;
-    
-    // Leggiamo la chiave API segreta dalle variabili d'ambiente di Vercel
-    const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY;
+import axios from 'axios';
 
-    if (!GEOAPIFY_API_KEY) {
-        return res.status(500).json({ message: "Geoapify API key not configured." });
-    }
+export default async (req, res) => {
+    // Leggiamo il testo da cercare dalla query string (?text=...)
+    const { text } = req.query;
+    
+    // Leggiamo la chiave API segreta dalle variabili d'ambiente di Vercel
+    const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY;
 
-    if (!text || text.length < 3) {
-        // Non avviare la ricerca per meno di 3 caratteri
-        return res.status(200).json([]);
-    }
+    if (!GEOAPIFY_API_KEY) {
+        return res.status(500).json({ message: "Geoapify API key not configured." });
+    }
 
-    const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(text)}&type=city&format=json&limit=5&apiKey=${GEOAPIFY_API_KEY}`;
+    if (!text || text.length < 3) {
+        // Non avviare la ricerca per meno di 3 caratteri
+        return res.status(200).json([]);
+    }
 
-    try {
-        const response = await axios.get(url);
+    const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(text)}&type=city&format=json&limit=5&apiKey=${GEOAPIFY_API_KEY}`;
 
-        // Formattiamo la risposta in un modo semplice per il frontend
-        const suggestions = response.data.results.map(item => ({
-            name: item.formatted,
-            lat: item.lat,
-            lon: item.lon,
-        }));
+    try {
+        const response = await axios.get(url);
 
-        res.status(200).json(suggestions);
+        // Formattiamo la risposta in un modo semplice per il frontend
+        const suggestions = response.data.results.map(item => ({
+            name: item.formatted,
+            lat: item.lat,
+            lon: item.lon,
+        }));
 
-    } catch (error) {
-        console.error("Geoapify API Error:", error.message);
-        res.status(500).json({ message: "An error occurred while fetching autocomplete data." });
-    }
+        res.status(200).json(suggestions);
+
+    } catch (error) {
+        console.error("Geoapify API Error:", error.message);
+        res.status(500).json({ message: "An error occurred while fetching autocomplete data." });
+    }
 };

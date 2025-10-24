@@ -1,13 +1,13 @@
-# fly.toml app configuration file
+# fly.toml app configuration file generated for pesca-api-v5 on 2025-10-15T13:06:30+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
 app = 'pesca-api-v5'
 primary_region = 'ams'
 
 [build]
-  dockerfile = 'Dockerfile'
-  BUILD_VERSION = "v7.0.4-rebuild-flag" # Aggiorniamo per invalidare la cache
-  [build.args]
-    BUILD_VERSION = "v7.0.3-force-iad-builder" 
+  dockerfile = 'Dockerfile.simple'
 
 [http_service]
   internal_port = 8080
