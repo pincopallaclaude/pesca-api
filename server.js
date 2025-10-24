@@ -92,7 +92,7 @@ app.post('/api/get-analysis', (req, res) => {
     if (!lat || !lon) return res.status(400).json({ status: 'error', message: 'Lat/Lon richiesti.' });
     
     const normalizedLocation = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
-    const cacheKey = `analysis-v1-${normalizedLocation}`;
+    const cacheKey = `analysis-v2-${normalizedLocation}`;
     
     const cached = analysisCache.get(cacheKey);
     if (cached) {

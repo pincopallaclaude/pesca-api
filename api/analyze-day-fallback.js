@@ -55,7 +55,7 @@ async function analyzeDayFallbackHandler(req, res) {
         };
         
         // Caching del risultato
-        const analysisCacheKey = `analysis-v1-${normalizedLocation}`;
+        const analysisCacheKey = `analysis-v2-${normalizedLocation}`;
         analysisCache.set(analysisCacheKey, finalAnalysis.trim());
         console.log("[RAG-Fallback] Analisi cachata e inviata con successo.");
         
