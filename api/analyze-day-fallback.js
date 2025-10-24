@@ -3,6 +3,7 @@
 import { myCache, analysisCache } from '../lib/utils/cache.manager.js';
 import { fetchAndProcessForecast, POSILLIPO_COORDS } from '../lib/forecast-logic.js'; // Importa anche la costante
 import { mcpClient } from '../lib/services/mcp-client.service.js';
+import geoUtils from '../lib/utils/geo.utils.js'; // NUOVO IMPORT
 
 /**
  * Gestore per l'analisi del giorno on-demand, utilizzato come fallback o per
@@ -39,12 +40,13 @@ async function analyzeDayFallbackHandler(req, res) {
         
         // Logica di fallback intelligente per il nome della località
         let locationForTitle = 'località sconosciuta';
-        // Normalizziamo le coordinate di Posillipo alla stessa precisione della normalizedLocation
-        const normalizedPosillipoCoords = POSILLIPO_COORDS.split(',').map(c => parseFloat(c).toFixed(3)).join(',');
+        
+        // NOTA: La logica di normalizzazione manuale delle coordinate di Posillipo è stata rimossa,
+        // utilizzando invece la funzione areCoordsNear() di geoUtils.
         
         if (forecastForDay.location?.name) {
             locationForTitle = forecastForDay.location.name;
-        } else if (normalizedLocation === normalizedPosillipoCoords) {
+        } else if (geoUtils.areCoordsNear(normalizedLocation, POSILLIPO_COORDS)) { // USA LA FUNZIONE CORRETTA
             locationForTitle = 'Zona Posillipo (Napoli)';
         } else {
             locationForTitle = normalizedLocation; // Fallback finale sulle coordinate normalizzate
