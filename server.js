@@ -97,7 +97,7 @@ app.post('/api/get-analysis', (req, res) => {
     const cached = analysisCache.get(cacheKey);
     if (cached) {
         console.log(`[Phantom-API] ✅ Cache HIT per analisi ${normalizedLocation}. Risposta istantanea.`);
-        return res.status(200).json(cached); 
+        return res.status(200).json({ status: 'success', data: cached });
     }
     
     console.log(`[Phantom-API] ⏳ Cache MISS per analisi ${normalizedLocation}. Il client userà il fallback.`);
