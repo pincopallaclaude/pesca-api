@@ -8,7 +8,7 @@ import path from 'path'; // Mantenuto per coerenza, anche se non strettamente us
 import { fileURLToPath } from 'url'; // Necessario per __dirname se fosse usato per path assoluti
 
 // Servizi e logiche
-import { fetchAndProcessForecast } from './lib/forecast-logic.js';
+import { fetchAndProcessForecast, POSILLIPO_COORDS } from './lib/forecast-logic.js'; // Importato POSILLIPO_COORDS
 import { myCache, analysisCache } from './lib/utils/cache.manager.js';
 import { loadKnowledgeBaseFromFile } from './lib/services/vector.service.js'; // Ancora necessario per pre-caricare il DB
 
@@ -50,8 +50,8 @@ app.get('/health', (req, res) => {
 // Route principale per i dati meteo
 app.get('/api/forecast', async (req, res) => {
     try {
-        // Uso la versione normalizzata come default:
-        const location = req.query.location || '40.813,14.208';
+        // USO POSILLIPO_COORDS come default se la location non è specificata
+        const location = req.query.location || POSILLIPO_COORDS; 
         const forecastData = await fetchAndProcessForecast(location);
         res.json(forecastData);
     } catch (error) {
@@ -68,7 +68,7 @@ app.get('/api/update-cache', async (req, res) => {
     }
     try {
         // Aggiorna la cache per la località di Napoli (o default)
-        await fetchAndProcessForecast('40.813,14.208');
+        await fetchAndProcessForecast(POSILLIPO_COORDS); // Uso POSILLIPO_COORDS
         return res.status(200).json({ status: 'ok' });
     } catch (error) {
         console.error("[CRON JOB] Error during update:", error.message);

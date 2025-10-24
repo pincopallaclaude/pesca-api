@@ -37,12 +37,13 @@ async function analyzeDayFallbackHandler(req, res) {
             throw new Error("Dati meteo non trovati né in cache né tramite fetch.");
         }
         
-        const locationName = forecastForDay.locationName || 'località sconosciuta';
+        // MODIFICA APPLICATA: Estrae il nome leggibile da 'location.name' invece che da 'locationName'
+        const readableLocationName = forecastForDay.location?.name || 'località sconosciuta';
         
         // **CHIAMATA CHIAVE: Usa il tool MCP**
         const result = await mcpClient.callTool('generate_analysis', {
             weatherData: forecastForDay,
-            location: locationName,
+            location: readableLocationName, // Usa la variabile modificata
         });
         
         if (result.isError || !result.content || result.content.length === 0) {
