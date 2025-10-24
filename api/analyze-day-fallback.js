@@ -1,7 +1,8 @@
 // /api/analyze-day-fallback.js
 
 import { myCache, analysisCache } from '../lib/utils/cache.manager.js';
-import { fetchAndProcessForecast, POSILLIPO_COORDS } from '../lib/forecast-logic.js';
+import { fetchAndProcessForecast } from '../lib/forecast-logic.js';
+import { POSILLIPO_COORDS } from '../lib/utils/constants.js'; // CAMBIATO: Ora usa constants.js
 import { mcpClient } from '../lib/services/mcp-client.service.js';
 import geoUtils from '../lib/utils/geo.utils.js'; // NUOVO IMPORT
 
