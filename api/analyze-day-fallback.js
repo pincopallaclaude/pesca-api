@@ -91,6 +91,14 @@ async function analyzeDayFallbackHandler(req, res) {
         
         // --- LOGICA DI ESTRAZIONE ROBUSTA AGGIORNATA ---
         let rawText = result.content[0].text;
+
+        // =================================================================
+        // LOG DIAGNOSTICO: ISPEZIONA LA RISPOSTA GREZZA DELL'AI
+        console.log("--- INIZIO RISPOSTA GREZZA AI (FALLBACK) ---");
+        console.log(rawText);
+        console.log("--- FINE RISPOSTA GREZZA AI (FALLBACK) ---");
+        // =================================================================
+
         let finalAnalysis = rawText; // Default: assumiamo sia già Markdown
 
         try {
