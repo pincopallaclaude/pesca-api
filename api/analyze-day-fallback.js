@@ -42,7 +42,30 @@ async function analyzeDayFallbackHandler(req, res) {
             throw new Error(errorMessage);
         }
         
-        const finalAnalysis = result.content[0].text;
+        // --- LOGICA DI ESTRAZIONE ROBUSTA ---
+        let rawText = result.content[0].text;
+        let finalAnalysis = rawText; // Default a Markdown
+        
+        try {
+            // Tenta di parsare il testo come se fosse JSON
+            const cleanedJsonText = rawText.replace(/^```json\s*/, '').replace(/```$/, '').trim();
+            const parsed = JSON.parse(cleanedJsonText);
+            
+            // Se il parsing ha successo, cerca una chiave che contenga il nostro Markdown
+            const analysisKey = Object.keys(parsed).find(k => typeof parsed[k] === 'string' && parsed[k].includes('### Analisi di Pesca'));
+            
+            if (analysisKey) {
+                console.log(`[Proactive-AI] Rilevato output JSON. Estrazione dalla chiave: "${analysisKey}"`);
+                finalAnalysis = parsed[analysisKey];
+            } else if (parsed.markdown_analysis) {
+                console.log(`[Proactive-AI] Rilevato output JSON. Estrazione dalla chiave "markdown_analysis"`);
+                finalAnalysis = parsed.markdown_analysis;
+            }
+        } catch (e) {
+            // Se il parsing fallisce, significa che è già Markdown. Ignora l'errore.
+            console.log("[Proactive-AI] Rilevato output Markdown diretto. Nessuna estrazione necessaria.");
+        }
+        
         
         if (!finalAnalysis || finalAnalysis.trim().length < 50) {
             throw new Error("L'analisi MCP estratta è vuota o insufficiente.");
