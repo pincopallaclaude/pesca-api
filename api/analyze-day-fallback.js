@@ -5,52 +5,13 @@ import { fetchAndProcessForecast } from '../lib/forecast-logic.js';
 import { mcpClient } from '../lib/services/mcp-client.service.js';
 
 /**
- * Converte l'oggetto JSON complesso dell'AI in una stringa Markdown formattata.
- * Questo funge da fallback per il caso in cui l'AI ritorni erroneamente JSON invece di Markdown puro.
- * @param {object} aiJson - L'oggetto JSON parsato dalla risposta dell'AI.
- * @returns {string | null} Una stringa Markdown o null se la struttura non è corretta.
+ * Gestore per l'analisi del giorno on-demand, utilizzato come fallback o per
+ * richieste dirette di analisi AI.
+ * Recupera i dati meteo (da cache o fetch) e chiama il tool MCP
+ * 'generate_analysis' per ottenere l'analisi di pesca in formato Markdown.
+ * @param {object} req - Oggetto della richiesta Express (deve contenere lat, lon in body).
+ * @param {object} res - Oggetto della risposta Express.
  */
-function convertComplexJsonToMarkdown(aiJson) {
-    if (!aiJson || !aiJson.analisiPesca) return null;
-
-    const { analisiPesca } = aiJson;
-    const { titolo, valutazioneGenerale, specieTargetConsigliate, tecnicheConsigliate, escheAttrezzatura } = analisiPesca;
-
-    // Inizia il Markdown con il titolo
-    let markdown = `### ${titolo || 'Analisi di Pesca'}\n\n`;
-
-    // Valutazione Generale
-    if (valutazioneGenerale) {
-        // Notare l'uso dei doppi apici per la chiave "descrizione" e la concatenazione
-        markdown += `**Valutazione Generale:** ${valutazioneGenerale.descrizione} (Punteggio: ${valutazioneGenerale.punteggioMedioGiornaliero})\n\n`;
-    }
-
-    // Specie Target
-    if (specieTargetConsigliate && specieTargetConsigliate.length > 0) {
-        markdown += "**Specie Target Consigliate:**\n";
-        specieTargetConsigliate.forEach(specie => {
-            markdown += `* **${specie.nome}:** ${specie.motivo}\n`;
-        });
-        markdown += "\n";
-    }
-
-    // Tecniche Consigliate
-    if (tecnicheConsigliate && tecnicheConsigliate.length > 0) {
-        markdown += "**Tecniche Consigliate:**\n";
-        tecnicheConsigliate.forEach(tech => {
-            markdown += `* **${tech.nome}:** ${tech.descrizione}\n`;
-        });
-        markdown += "\n";
-    }
-    
-    // Esche/Attrezzatura
-    if (escheAttrezzatura) {
-        markdown += `**Esche e Attrezzatura:** ${escheAttrezzatura.descrizione}\n`;
-    }
-
-    return markdown.trim();
-}
-
 async function analyzeDayFallbackHandler(req, res) {
     console.log(`[RAG-Fallback] Received on-demand request.`);
     const { lat, lon } = req.body;
@@ -89,45 +50,16 @@ async function analyzeDayFallbackHandler(req, res) {
             throw new Error(errorMessage);
         }
         
-        // --- LOGICA DI ESTRAZIONE ROBUSTA AGGIORNATA ---
-        let rawText = result.content[0].text;
+        // La risposta del tool MCP è ora garantita (dal prompt) essere puro Markdown.
+        // Non è più necessaria alcuna logica di parsing o conversione JSON.
+        const finalAnalysis = result.content[0].text;
 
         // =================================================================
         // LOG DIAGNOSTICO: ISPEZIONA LA RISPOSTA GREZZA DELL'AI
         console.log("--- INIZIO RISPOSTA GREZZA AI (FALLBACK) ---");
-        console.log(rawText);
+        console.log(finalAnalysis);
         console.log("--- FINE RISPOSTA GREZZA AI (FALLBACK) ---");
         // =================================================================
-
-        let finalAnalysis = rawText; // Default: assumiamo sia già Markdown
-
-        try {
-            // Rimuovi eventuali blocchi di codice markdown (es. ```json ... ```)
-            const cleanedJsonText = rawText.replace(/^```json\s*/, '').replace(/```$/, '').trim();
-            const parsed = JSON.parse(cleanedJsonText);
-            
-            // Tenta la conversione dal formato complesso usando la nuova funzione
-            const convertedMarkdown = convertComplexJsonToMarkdown(parsed);
-            
-            if (convertedMarkdown) {
-                console.log("[Fallback] Rilevato e convertito JSON complesso in Markdown.");
-                finalAnalysis = convertedMarkdown;
-            } else {
-                // Se non è il JSON complesso, potremmo cercare l'analisi in altre chiavi (come da logica precedente)
-                const analysisKey = Object.keys(parsed).find(k => typeof parsed[k] === 'string' && parsed[k].includes('### Analisi di Pesca'));
-            
-                if (analysisKey) {
-                    console.log(`[Fallback] Rilevato output JSON generico. Estrazione dalla chiave: "${analysisKey}"`);
-                    finalAnalysis = parsed[analysisKey];
-                } else if (parsed.markdown_analysis) {
-                    console.log(`[Fallback] Rilevato output JSON generico. Estrazione dalla chiave "markdown_analysis"`);
-                    finalAnalysis = parsed.markdown_analysis;
-                }
-            }
-        } catch (e) {
-            // Se il parsing fallisce, significa che è già Markdown puro (il comportamento atteso).
-            console.log("[Fallback] Rilevato output Markdown diretto. Nessuna conversione necessaria.");
-        }
 
         if (!finalAnalysis || finalAnalysis.trim().length < 50) {
             throw new Error("L'analisi MCP estratta è vuota o insufficiente.");
