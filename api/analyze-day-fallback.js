@@ -87,15 +87,17 @@ async function analyzeDayFallbackHandler(req, res) {
         console.log("[RAG-Fallback] Analisi (con metadati) cachata e inviata con successo.");
         
         // RESTITUISCE IL PAYLOAD COMPLETO AL CLIENT
-        return res.status(200).json({ 
-            status: 'success',
-            data: analysisPayload // L'analisi e i metadati sono inclusi qui
-        });
+        // MODIFICA QUI: Ritorno diretto del payload senza l'involucro 'data'
+        return res.status(200).json(analysisPayload);
 
     } catch (error) {
         console.error("[RAG-Fallback] ERROR during on-demand analysis:", error.stack);
         const errorMessage = error.message || "Errore sconosciuto durante l'elaborazione dell'analisi AI.";
-        return res.status(500).json({ status: 'error', message: errorMessage });
+        return res.status(500).json({ 
+            status: 'error', 
+            message: errorMessage,
+            details: error.message
+        });
     }
 }
 
