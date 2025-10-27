@@ -10,7 +10,7 @@ import { areCoordsNear } from '../lib/utils/geo.utils.js';      // Import per
  * Gestore per l'analisi del giorno on-demand, utilizzato come fallback o per
  * richieste dirette di analisi AI.
  * Recupera i dati meteo (da cache o fetch) e chiama il tool MCP
- * 'generate_analysis' per ottenere l'analisi di pesca in formato Markdown.
+ * 'analyze_with_best_model' per ottenere l'analisi di pesca in formato Markdown.
  * @param {object} req - Oggetto della richiesta Express (deve contenere lat, lon in body).
  * @param {object} res - Oggetto della risposta Express.
  */
@@ -50,8 +50,8 @@ async function analyzeDayFallbackHandler(req, res) {
             locationForTitle = normalizedLocation; // Fallback finale sulle coordinate normalizzate
         }
         
-        // **CHIAMATA CHIAVE: Usa il tool MCP**
-        const result = await mcpClient.callTool('generate_analysis', {
+        // **CHIAMATA CHIAVE: Usa il tool MCP multi-model**
+        const result = await mcpClient.callTool('analyze_with_best_model', {
             weatherData: forecastForDay,
             location: locationForTitle,
         });
