@@ -92,24 +92,62 @@ app.get('/api/reverse-geocode', reverseGeocodeModule);
 
 
 // =========================================================================
-// --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) - Invariato ---
+// --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) - AGGIORNATO CON METADATA ---
 // =========================================================================
-app.post('/api/get-analysis', (req, res) => {
-    const { lat, lon } = req.body;
-    if (!lat || !lon) return res.status(400).json({ status: 'error', message: 'Lat/Lon richiesti.' });
-   
-    const normalizedLocation = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
-    const cacheKey = `analysis-v2-${normalizedLocation}`;
+app.post('/api/get-analysis', async (req, res) => { // Aggiunto 'async' per coerenza
+    try {
+        const { lat, lon } = req.body;
 
-    const cached = analysisCache.get(cacheKey);
-    if (cached) {
-        console.log(`[Phantom-API] ✅ Cache HIT per analisi ${normalizedLocation}. Risposta istantanea.`);
-        return res.status(200).json({ status: 'success', data: cached });
+        if (!lat || !lon) {
+            return res.status(400).json({
+                error: 'Coordinate mancanti',
+                status: 'error'
+            });
+        }
+
+        // !!! CHIAVE UNIFICATA: lat_lon (senza prefisso 'analysis-v2')
+        const cacheKey = `${parseFloat(lat).toFixed(3)}_${parseFloat(lon).toFixed(3)}`;
+
+        const cachedAnalysis = analysisCache.get(cacheKey);
+
+        if (cachedAnalysis) {
+            console.log(`[Phantom-API] ✅ Cache HIT per analisi ${cacheKey}. Risposta istantanea.`);
+
+            // Verifica se è la vecchia cache (solo stringa) o la nuova (oggetto)
+            const isLegacyString = typeof cachedAnalysis === 'string';
+
+            // ✅ NUOVO: Ritorna oggetto completo con metadata
+            return res.json({
+                status: 'ready',
+                // Se è stringa, usa la stringa. Altrimenti, usa il campo 'analysis'
+                analysis: isLegacyString ? cachedAnalysis : cachedAnalysis.analysis,
+                // Se è un oggetto, estrai i metadati
+                metadata: isLegacyString ? undefined : {
+                    locationName: cachedAnalysis.locationName,
+                    modelUsed: cachedAnalysis.modelUsed,
+                    modelProvider: cachedAnalysis.modelProvider,
+                    complexityLevel: cachedAnalysis.complexityLevel,
+                    generatedAt: cachedAnalysis.generatedAt,
+                    timingMs: cachedAnalysis.timingMs,
+                },
+            });
+        } else {
+            console.log(`[Phantom-API] ⏳ Cache MISS per analisi ${cacheKey}. Il client userà il fallback.`);
+            return res.json({
+                status: 'pending',
+                message: 'Analisi in elaborazione...',
+            });
+        }
+
+    } catch (error) {
+        console.error('[GET Analysis] ❌ Errore:', error);
+        res.status(500).json({
+            error: 'Errore recupero analisi',
+            status: 'error'
+        });
     }
-
-    console.log(`[Phantom-API] ⏳ Cache MISS per analisi ${normalizedLocation}. Il client userà il fallback.`);
-    return res.status(202).json({ status: 'pending' });
 });
+
 
 
 // =========================================================================
