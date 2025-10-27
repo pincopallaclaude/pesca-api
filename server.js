@@ -1,22 +1,27 @@
-// server.js
+ // server.js
 
-// Load environment variables 
+
+// Load environment variables
 import 'dotenv/config'; // Usa il nuovo standard ES Module per caricare le variabili d'ambiente
 import express from 'express';
 import cors from 'cors';
 import path from 'path'; // Mantenuto per coerenza, anche se non strettamente usato per static files
 import { fileURLToPath } from 'url'; // Necessario per __dirname se fosse usato per path assoluti
 
+
 // Servizi e logiche
 import { fetchAndProcessForecast, POSILLIPO_COORDS } from './lib/forecast-logic.js'; // Importato POSILLIPO_COORDS
 import { myCache, analysisCache } from './lib/utils/cache.manager.js';
 import { loadKnowledgeBaseFromFile } from './lib/services/vector.service.js'; // Ancora necessario per pre-caricare il DB
 
+
 // Handler API
 import autocompleteHandler from './api/autocomplete.js';
-import * as reverseGeocodeModule from './api/reverse-geocode.js'; // Importato come namespace
-import * as analyzeDayFallbackModule from './api/analyze-day-fallback.js'; // Assunto anche questo come namespace
-import { mcpClient } from './lib/services/mcp-client.service.js'; // <-- Nuovo MCP CLIENT
+import reverseGeocodeModule from './api/reverse-geocode.js'; // Importato l'export default
+import analyzeDayFallbackModule from './api/analyze-day-fallback.js'; // Importato l'export default
+import queryNaturalLanguage from './api/query-natural-language.js'; // Nuovo import
+import recommendSpecies from './api/recommend-species.js'; // Nuovo import
+import { mcpClient } from './lib/services/mcp-client.service.js'; // MCP CLIENT
 
 // Validazione environment
 if (!process.env.GEMINI_API_KEY) {
@@ -39,10 +44,13 @@ app.use(express.json()); // Per parsare i body delle richieste in JSON
 app.get('/', (req, res) => res.status(200).send('Pesca API Server is running!'));
 
 // Route per il controllo di stato e la connettività MCP
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+    // Nota: Ho modificato questa route per riflettere un pattern più comune
+    // di health check e per includere lo stato MCP
+    const mcpStatus = mcpClient.connected ? 'connected' : 'disconnected';
     res.json({
         status: 'ok',
-        mcp: mcpClient.connected ? 'connected' : 'disconnected',
+        mcp: mcpStatus,
         timestamp: new Date().toISOString()
     });
 });
@@ -51,7 +59,7 @@ app.get('/health', (req, res) => {
 app.get('/api/forecast', async (req, res) => {
     try {
         // USO POSILLIPO_COORDS come default se la location non è specificata
-        const location = req.query.location || POSILLIPO_COORDS; 
+        const location = req.query.location || POSILLIPO_COORDS;
         const forecastData = await fetchAndProcessForecast(location);
         res.json(forecastData);
     } catch (error) {
@@ -79,9 +87,8 @@ app.get('/api/update-cache', async (req, res) => {
 // Route per l'autocomplete e il reverse geocoding
 app.get('/api/autocomplete', autocompleteHandler);
 
-// CORREZIONE: Usare .default perché reverse-geocode.js usa export default
-// Questo risolve "argument handler must be a function"
-app.get('/api/reverse-geocode', reverseGeocodeModule.default);
+// CORREZIONE: Usare l'export default corretto
+app.get('/api/reverse-geocode', reverseGeocodeModule);
 
 
 // =========================================================================
@@ -90,16 +97,16 @@ app.get('/api/reverse-geocode', reverseGeocodeModule.default);
 app.post('/api/get-analysis', (req, res) => {
     const { lat, lon } = req.body;
     if (!lat || !lon) return res.status(400).json({ status: 'error', message: 'Lat/Lon richiesti.' });
-    
+   
     const normalizedLocation = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
     const cacheKey = `analysis-v2-${normalizedLocation}`;
-    
+
     const cached = analysisCache.get(cacheKey);
     if (cached) {
         console.log(`[Phantom-API] ✅ Cache HIT per analisi ${normalizedLocation}. Risposta istantanea.`);
         return res.status(200).json({ status: 'success', data: cached });
     }
-    
+
     console.log(`[Phantom-API] ⏳ Cache MISS per analisi ${normalizedLocation}. Il client userà il fallback.`);
     return res.status(202).json({ status: 'pending' });
 });
@@ -108,31 +115,37 @@ app.post('/api/get-analysis', (req, res) => {
 // =========================================================================
 // --- [FALLBACK] ENDPOINT ON-DEMAND - ORA USA MCP ---
 // =========================================================================
-// CORREZIONE: Assumiamo che analyzeDayFallbackHandler usi anch'esso export default
-app.post('/api/analyze-day-fallback', analyzeDayFallbackModule.default);
+// CORREZIONE: Usare l'export default corretto
+app.post('/api/analyze-day-fallback', analyzeDayFallbackModule);
 
+// === NEW: Advanced AI Features ===
+app.post('/api/query', queryNaturalLanguage);
+app.post('/api/recommend-species', recommendSpecies);
 
 // --- AVVIO E SHUTDOWN ---
 async function startServer() {
     try {
         console.log('[SERVER STARTUP] 🚀 Inizializzazione...');
-        
+       
+
         // Step 1: Carica Vector DB PRIMA (il server MCP ne ha bisogno)
         console.log('[SERVER STARTUP] 📖 Caricamento knowledge base...');
         await loadKnowledgeBaseFromFile();
         console.log('[SERVER STARTUP] ✅ Knowledge base caricata');
-        
+
+
         // Step 2: Connette client MCP
         console.log('[SERVER STARTUP] 🔌 Connessione MCP client...');
         await mcpClient.connect();
         console.log('[SERVER STARTUP] ✅ MCP client connesso');
-    
+
         // Step 3: Avvia Express
-        app.listen(PORT, '0.0.0.0', () => { 
+        app.listen(PORT, '0.0.0.0', () => {
           console.log(`[SERVER STARTUP] 🎣 Server pronto su porta ${PORT}`);
           console.log(`[SERVER STARTUP] 🤖 Sistema MCP-Enhanced attivo`);
         });
-        
+       
+
     } catch (error) {
         console.error('[FATAL STARTUP CRASH]', error);
         process.exit(1);
@@ -147,4 +160,4 @@ process.on('SIGTERM', async () => {
 });
 
 // Gestione dell'errore di avvio
-startServer();
+startServer(); 
