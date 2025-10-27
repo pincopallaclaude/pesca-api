@@ -1,11 +1,10 @@
- // server.js
-
+// server.js
 
 // Load environment variables
 import 'dotenv/config'; // Usa il nuovo standard ES Module per caricare le variabili d'ambiente
 import express from 'express';
 import cors from 'cors';
-import path from 'path'; // Mantenuto per coerenza, anche se non strettamente usato per static files
+import path from 'path';
 import { fileURLToPath } from 'url'; // Necessario per __dirname se fosse usato per path assoluti
 
 
@@ -45,8 +44,6 @@ app.get('/', (req, res) => res.status(200).send('Pesca API Server is running!'))
 
 // Route per il controllo di stato e la connettività MCP
 app.get('/health', async (req, res) => {
-    // Nota: Ho modificato questa route per riflettere un pattern più comune
-    // di health check e per includere lo stato MCP
     const mcpStatus = mcpClient.connected ? 'connected' : 'disconnected';
     res.json({
         status: 'ok',
@@ -92,22 +89,46 @@ app.get('/api/reverse-geocode', reverseGeocodeModule);
 
 
 // =========================================================================
-// --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) - Invariato ---
+// --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) - Aggiornato per Cache Oggetto ---
 // =========================================================================
 app.post('/api/get-analysis', (req, res) => {
     const { lat, lon } = req.body;
     if (!lat || !lon) return res.status(400).json({ status: 'error', message: 'Lat/Lon richiesti.' });
    
-    const normalizedLocation = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
-    const cacheKey = `analysis-v2-${normalizedLocation}`;
+    // Normalizza la chiave per corrispondere a quanto salvato da proactive_analysis.service.js
+    // Formato: "lat_lon" (es. "40.813_14.209")
+    const cacheKey = `${parseFloat(lat).toFixed(3)}_${parseFloat(lon).toFixed(3)}`;
 
-    const cached = analysisCache.get(cacheKey);
-    if (cached) {
-        console.log(`[Phantom-API] ✅ Cache HIT per analisi ${normalizedLocation}. Risposta istantanea.`);
-        return res.status(200).json({ status: 'success', data: cached });
+    const cachedData = analysisCache.get(cacheKey);
+    
+    if (cachedData) {
+        console.log(`[Phantom-API] ✅ Cache HIT per analisi ${cacheKey}. Risposta istantanea.`);
+        
+        // Verifica se è il nuovo oggetto arricchito o la vecchia stringa (per retrocompatibilità)
+        const isEnrichedObject = typeof cachedData === 'object' && cachedData.analysis;
+        
+        const responseData = {
+            // Il frontend si aspetta 'analysis' nel campo 'data'
+            analysis: isEnrichedObject ? cachedData.analysis : cachedData, 
+        };
+        
+        // Estrai i metadati solo se è il nuovo formato
+        const responseMetadata = isEnrichedObject ? {
+            locationName: cachedData.locationName,
+            modelUsed: cachedData.modelUsed,
+            timingMs: cachedData.timingMs,
+            generatedAt: cachedData.generatedAt,
+            version: cachedData.version,
+        } : {};
+
+        return res.status(200).json({ 
+            status: 'success', 
+            data: responseData, 
+            metadata: responseMetadata // Passa i metadata arricchiti al frontend
+        });
     }
 
-    console.log(`[Phantom-API] ⏳ Cache MISS per analisi ${normalizedLocation}. Il client userà il fallback.`);
+    console.log(`[Phantom-API] ⏳ Cache MISS per analisi ${cacheKey}. Il client userà il fallback.`);
     return res.status(202).json({ status: 'pending' });
 });
 
@@ -126,7 +147,7 @@ app.post('/api/recommend-species', recommendSpecies);
 async function startServer() {
     try {
         console.log('[SERVER STARTUP] 🚀 Inizializzazione...');
-       
+        
 
         // Step 1: Carica Vector DB PRIMA (il server MCP ne ha bisogno)
         console.log('[SERVER STARTUP] 📖 Caricamento knowledge base...');
@@ -144,7 +165,7 @@ async function startServer() {
           console.log(`[SERVER STARTUP] 🎣 Server pronto su porta ${PORT}`);
           console.log(`[SERVER STARTUP] 🤖 Sistema MCP-Enhanced attivo`);
         });
-       
+        
 
     } catch (error) {
         console.error('[FATAL STARTUP CRASH]', error);
@@ -160,4 +181,4 @@ process.on('SIGTERM', async () => {
 });
 
 // Gestione dell'errore di avvio
-startServer(); 
+startServer();
