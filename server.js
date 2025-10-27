@@ -1,4 +1,4 @@
-// server.js
+ // server.js
 
 
 // Load environment variables
@@ -92,22 +92,19 @@ app.get('/api/reverse-geocode', reverseGeocodeModule);
 
 
 // =========================================================================
-// --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) - MODIFICATO ---
+// --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) - Invariato ---
 // =========================================================================
 app.post('/api/get-analysis', (req, res) => {
     const { lat, lon } = req.body;
     if (!lat || !lon) return res.status(400).json({ status: 'error', message: 'Lat/Lon richiesti.' });
-    
+   
     const normalizedLocation = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
     const cacheKey = `analysis-v2-${normalizedLocation}`;
 
-    // MODIFICA: Recupera l'intero payload (oggetto { analysis: '...', metadata: {...} })
-    const analysisPayload = analysisCache.get(cacheKey); 
-    
-    if (analysisPayload) {
+    const cached = analysisCache.get(cacheKey);
+    if (cached) {
         console.log(`[Phantom-API] ✅ Cache HIT per analisi ${normalizedLocation}. Risposta istantanea.`);
-        // Restituisce l'intero payload (analisi + metadati)
-        return res.status(200).json({ status: 'success', data: analysisPayload });
+        return res.status(200).json({ status: 'success', data: cached });
     }
 
     console.log(`[Phantom-API] ⏳ Cache MISS per analisi ${normalizedLocation}. Il client userà il fallback.`);
@@ -129,7 +126,7 @@ app.post('/api/recommend-species', recommendSpecies);
 async function startServer() {
     try {
         console.log('[SERVER STARTUP] 🚀 Inizializzazione...');
-        
+       
 
         // Step 1: Carica Vector DB PRIMA (il server MCP ne ha bisogno)
         console.log('[SERVER STARTUP] 📖 Caricamento knowledge base...');
@@ -147,7 +144,7 @@ async function startServer() {
           console.log(`[SERVER STARTUP] 🎣 Server pronto su porta ${PORT}`);
           console.log(`[SERVER STARTUP] 🤖 Sistema MCP-Enhanced attivo`);
         });
-        
+       
 
     } catch (error) {
         console.error('[FATAL STARTUP CRASH]', error);

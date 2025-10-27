@@ -138,17 +138,7 @@ ${JSON.stringify(summaryData, null, 2)}
 ## Conoscenza dalla Knowledge Base
 ${relevantDocs.map((doc, i) => `### Documento ${i + 1}\n${doc}`).join('\n')}
 ## Istruzioni
-${complexity.level === 'high' ? 'Genera un\'analisi APPROFONDITA e DETTAGLIATA.' : 'Genera un\'analisi CONCISA ma completa.'}
-
-La tua risposta DEVE essere un testo discorsivo formattato in Markdown, pronto per essere mostrato a un utente.
-NON restituire un oggetto JSON o un blocco di codice JSON.
-
-Includi i seguenti punti nella tua analisi testuale:
-1. Valutazione condizioni generali
-2. Specie target consigliate con motivazioni
-3. Tecniche specifiche e strategie
-4. Esche/attrezzatura consigliate
-5. Orari e finestre di pesca ottimali
-
-Stile: Professionale, chiaro e accessibile.`;
+${complexity.level === 'high' ? 'Genera analisi APPROFONDITA e DETTAGLIATA. Condizioni complesse richiedono spiegazioni estese.' : 'Genera analisi CONCISA ma completa.'}
+Includi: 1. Valutazione condizioni generali 2. Specie target consigliate 3. Tecniche specifiche 4. Esche/attrezzatura 5. Orari ottimali.
+Stile: Professionale ma accessibile. Usa Markdown.`;
 }

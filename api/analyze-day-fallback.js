@@ -3,14 +3,14 @@
 import { myCache, analysisCache } from '../lib/utils/cache.manager.js';
 import { fetchAndProcessForecast } from '../lib/forecast-logic.js';
 import { mcpClient } from '../lib/services/mcp-client.service.js';
-import { POSILLIPO_COORDS } from '../lib/utils/constants.js';    // Import CORRETTO
-import { areCoordsNear } from '../lib/utils/geo.utils.js';      // Import per confronto ROBUSTO
+import { POSILLIPO_COORDS } from '../lib/utils/constants.js';    // Import CORRETTO
+import { areCoordsNear } from '../lib/utils/geo.utils.js';      // Import per confronto ROBUSTO
 
 /**
  * Gestore per l'analisi del giorno on-demand, utilizzato come fallback o per
  * richieste dirette di analisi AI.
  * Recupera i dati meteo (da cache o fetch) e chiama il tool MCP
- * 'analyze_with_best_model' per ottenere l'analisi di pesca in formato Markdown.
+ * 'generate_analysis' per ottenere l'analisi di pesca in formato Markdown.
  * @param {object} req - Oggetto della richiesta Express (deve contenere lat, lon in body).
  * @param {object} res - Oggetto della risposta Express.
  */
@@ -50,8 +50,8 @@ async function analyzeDayFallbackHandler(req, res) {
             locationForTitle = normalizedLocation; // Fallback finale sulle coordinate normalizzate
         }
         
-        // **CHIAMATA CHIAVE: Usa il tool MCP multi-model**
-        const result = await mcpClient.callTool('analyze_with_best_model', {
+        // **CHIAMATA CHIAVE: Usa il tool MCP**
+        const result = await mcpClient.callTool('generate_analysis', {
             weatherData: forecastForDay,
             location: locationForTitle,
         });
@@ -62,42 +62,37 @@ async function analyzeDayFallbackHandler(req, res) {
         }
         
         // La risposta del tool MCP è ora garantita (dal prompt) essere puro Markdown.
-        const analysisText = result.content[0].text;
+        // Non è più necessaria alcuna logica di parsing o conversione JSON.
+        const finalAnalysis = result.content[0].text;
 
         // =================================================================
         // LOG DIAGNOSTICO: ISPEZIONA LA RISPOSTA GREZZA DELL'AI
         console.log("--- INIZIO RISPOSTA GREZZA AI (FALLBACK) ---");
-        console.log(analysisText);
+        console.log(finalAnalysis);
         console.log("--- FINE RISPOSTA GREZZA AI (FALLBACK) ---");
         // =================================================================
 
-        if (!analysisText || analysisText.trim().length < 50) {
+        if (!finalAnalysis || finalAnalysis.trim().length < 50) {
             throw new Error("L'analisi MCP estratta è vuota o insufficiente.");
         }
         
-        // CREAZIONE DEL PAYLOAD UNIFORME PER CACHE E RISPOSTA
-        const analysisPayload = {
-            analysis: analysisText.trim(),
-            metadata: result.metadata,
+        const successResponse = {
+            status: 'success',
+            data: finalAnalysis.trim(),
+            metadata: result.metadata
         };
         
-        // Caching del risultato (SALVA L'INTERO PAYLOAD)
+        // Caching del risultato
         const analysisCacheKey = `analysis-v2-${normalizedLocation}`;
-        analysisCache.set(analysisCacheKey, analysisPayload);
-        console.log("[RAG-Fallback] Analisi (con metadati) cachata e inviata con successo.");
+        analysisCache.set(analysisCacheKey, finalAnalysis.trim());
+        console.log("[RAG-Fallback] Analisi cachata e inviata con successo.");
         
-        // RESTITUISCE IL PAYLOAD COMPLETO AL CLIENT
-        // MODIFICA QUI: Ritorno diretto del payload senza l'involucro 'data'
-        return res.status(200).json(analysisPayload);
+        return res.status(200).json(successResponse);
 
     } catch (error) {
         console.error("[RAG-Fallback] ERROR during on-demand analysis:", error.stack);
         const errorMessage = error.message || "Errore sconosciuto durante l'elaborazione dell'analisi AI.";
-        return res.status(500).json({ 
-            status: 'error', 
-            message: errorMessage,
-            details: error.message
-        });
+        return res.status(500).json({ status: 'error', message: errorMessage });
     }
 }
 
