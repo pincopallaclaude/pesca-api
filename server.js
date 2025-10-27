@@ -1,10 +1,7 @@
-// server.js
-
-// Load environment variables
 import 'dotenv/config'; // Usa il nuovo standard ES Module per caricare le variabili d'ambiente
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
+import path from 'path'; // Mantenuto per coerenza, anche se non strettamente usato per static files
 import { fileURLToPath } from 'url'; // Necessario per __dirname se fosse usato per path assoluti
 
 
@@ -44,6 +41,8 @@ app.get('/', (req, res) => res.status(200).send('Pesca API Server is running!'))
 
 // Route per il controllo di stato e la connettività MCP
 app.get('/health', async (req, res) => {
+    // Nota: Ho modificato questa route per riflettere un pattern più comune
+    // di health check e per includere lo stato MCP
     const mcpStatus = mcpClient.connected ? 'connected' : 'disconnected';
     res.json({
         status: 'ok',
@@ -89,54 +88,58 @@ app.get('/api/reverse-geocode', reverseGeocodeModule);
 
 
 // =========================================================================
-// --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) - Aggiornato per Cache Oggetto ---
+// --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) - Aggiornato ---
 // =========================================================================
-app.post('/api/get-analysis', (req, res) => {
-    const { lat, lon } = req.body;
-    if (!lat || !lon) return res.status(400).json({ status: 'error', message: 'Lat/Lon richiesti.' });
-   
-    // Normalizza la chiave per corrispondere a quanto salvato da proactive_analysis.service.js
-    // Formato: "lat_lon" (es. "40.813_14.209")
-    const cacheKey = `${parseFloat(lat).toFixed(3)}_${parseFloat(lon).toFixed(3)}`;
+app.post('/api/get-analysis', async (req, res) => {
+    try {
+        const { lat, lon } = req.body;
+        if (!lat || !lon) {
+            return res.status(400).json({ error: 'Coordinate mancanti', status: 'error' });
+        }
+        
+        // La chiave cache deve corrispondere a quella usata da proactive_analysis.service.js
+        const cacheKey = `${parseFloat(lat).toFixed(3)}_${parseFloat(lon).toFixed(3)}`;
+        const cachedData = analysisCache.get(cacheKey);
+        
+        if (cachedData) {
+            // ✅ Ritorna l'oggetto completo con metadata
+            // Controlla se i dati sono nel nuovo formato (Object con 'analysis' property)
+            const isNewFormat = typeof cachedData === 'object' && cachedData !== null && 'analysis' in cachedData;
 
-    const cachedData = analysisCache.get(cacheKey);
-    
-    if (cachedData) {
-        console.log(`[Phantom-API] ✅ Cache HIT per analisi ${cacheKey}. Risposta istantanea.`);
-        
-        // Verifica se è il nuovo oggetto arricchito o la vecchia stringa (per retrocompatibilità)
-        const isEnrichedObject = typeof cachedData === 'object' && cachedData.analysis;
-        
-        const responseData = {
-            // Il frontend si aspetta 'analysis' nel campo 'data'
-            analysis: isEnrichedObject ? cachedData.analysis : cachedData, 
-        };
-        
-        // Estrai i metadati solo se è il nuovo formato
-        const responseMetadata = isEnrichedObject ? {
-            locationName: cachedData.locationName,
-            modelUsed: cachedData.modelUsed,
-            timingMs: cachedData.timingMs,
-            generatedAt: cachedData.generatedAt,
-            version: cachedData.version,
-        } : {};
-
-        return res.status(200).json({ 
-            status: 'success', 
-            data: responseData, 
-            metadata: responseMetadata // Passa i metadata arricchiti al frontend
-        });
+            // Log per tracciare l'HIT e il formato utilizzato
+            console.log(`[Phantom-API] ✅ Cache HIT per analisi ${cacheKey}. Formato: ${isNewFormat ? 'Nuovo' : 'Vecchio'}`);
+            
+            return res.json({
+                status: 'ready',
+                // Nel nuovo formato, l'analisi è in cachedData.analysis
+                // Nel vecchio formato (stringa), cachedData è l'analisi stessa
+                data: {
+                    analysis: isNewFormat ? cachedData.analysis : cachedData,
+                },
+                metadata: isNewFormat ? {
+                    locationName: cachedData.locationName,
+                    modelUsed: cachedData.modelUsed,
+                    modelProvider: cachedData.modelProvider,
+                    complexityLevel: cachedData.complexityLevel,
+                    generatedAt: cachedData.generatedAt,
+                    timingMs: cachedData.timingMs,
+                } : null, // Non ci sono metadati per il vecchio formato
+            });
+        } else {
+            console.log(`[Phantom-API] ⏳ Cache MISS per analisi ${cacheKey}. Il client userà il fallback.`);
+            return res.status(202).json({ status: 'pending', message: 'Analisi in elaborazione...' });
+        }
+    } catch (error) {
+        console.error('[GET Analysis] ❌ Errore:', error);
+        res.status(500).json({ error: 'Errore recupero analisi', status: 'error' });
     }
-
-    console.log(`[Phantom-API] ⏳ Cache MISS per analisi ${cacheKey}. Il client userà il fallback.`);
-    return res.status(202).json({ status: 'pending' });
 });
 
 
 // =========================================================================
 // --- [FALLBACK] ENDPOINT ON-DEMAND - ORA USA MCP ---
 // =========================================================================
-// CORREZIONE: Usare l'export default corretto
+// Il modulo analyzeDayFallbackModule gestisce l'export in modo che venga usato direttamente
 app.post('/api/analyze-day-fallback', analyzeDayFallbackModule);
 
 // === NEW: Advanced AI Features ===
