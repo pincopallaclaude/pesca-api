@@ -3,8 +3,8 @@
 import { myCache, analysisCache } from '../lib/utils/cache.manager.js';
 import { fetchAndProcessForecast } from '../lib/forecast-logic.js';
 import { mcpClient } from '../lib/services/mcp-client.service.js';
-import { POSILLIPO_COORDS } from '../lib/utils/constants.js';    // Import CORRETTO
-import { areCoordsNear } from '../lib/utils/geo.utils.js';      // Import per confronto ROBUSTO
+import { POSILLIPO_COORDS } from '../lib/utils/constants.js';    // Import CORRETTO
+import { areCoordsNear } from '../lib/utils/geo.utils.js';      // Import per confronto ROBUSTO
 
 /**
  * Gestore per l'analisi del giorno on-demand, utilizzato come fallback o per
@@ -62,32 +62,35 @@ async function analyzeDayFallbackHandler(req, res) {
         }
         
         // La risposta del tool MCP è ora garantita (dal prompt) essere puro Markdown.
-        // Non è più necessaria alcuna logica di parsing o conversione JSON.
-        const finalAnalysis = result.content[0].text;
+        const analysisText = result.content[0].text;
 
         // =================================================================
         // LOG DIAGNOSTICO: ISPEZIONA LA RISPOSTA GREZZA DELL'AI
         console.log("--- INIZIO RISPOSTA GREZZA AI (FALLBACK) ---");
-        console.log(finalAnalysis);
+        console.log(analysisText);
         console.log("--- FINE RISPOSTA GREZZA AI (FALLBACK) ---");
         // =================================================================
 
-        if (!finalAnalysis || finalAnalysis.trim().length < 50) {
+        if (!analysisText || analysisText.trim().length < 50) {
             throw new Error("L'analisi MCP estratta è vuota o insufficiente.");
         }
         
-        const successResponse = {
-            status: 'success',
-            data: finalAnalysis.trim(),
-            metadata: result.metadata
+        // CREAZIONE DEL PAYLOAD UNIFORME PER CACHE E RISPOSTA
+        const analysisPayload = {
+            analysis: analysisText.trim(),
+            metadata: result.metadata,
         };
         
-        // Caching del risultato
+        // Caching del risultato (SALVA L'INTERO PAYLOAD)
         const analysisCacheKey = `analysis-v2-${normalizedLocation}`;
-        analysisCache.set(analysisCacheKey, finalAnalysis.trim());
-        console.log("[RAG-Fallback] Analisi cachata e inviata con successo.");
+        analysisCache.set(analysisCacheKey, analysisPayload);
+        console.log("[RAG-Fallback] Analisi (con metadati) cachata e inviata con successo.");
         
-        return res.status(200).json(successResponse);
+        // RESTITUISCE IL PAYLOAD COMPLETO AL CLIENT
+        return res.status(200).json({ 
+            status: 'success',
+            data: analysisPayload // L'analisi e i metadati sono inclusi qui
+        });
 
     } catch (error) {
         console.error("[RAG-Fallback] ERROR during on-demand analysis:", error.stack);
