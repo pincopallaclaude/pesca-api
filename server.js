@@ -1,3 +1,6 @@
+// server.js
+
+// Load environment variables
 import 'dotenv/config'; // Usa il nuovo standard ES Module per caricare le variabili d'ambiente
 import express from 'express';
 import cors from 'cors';
@@ -13,8 +16,8 @@ import { loadKnowledgeBaseFromFile } from './lib/services/vector.service.js'; //
 
 // Handler API
 import autocompleteHandler from './api/autocomplete.js';
-import reverseGeocodeModule from './api/reverse-geocode.js'; // Importato l'export default
-import analyzeDayFallbackModule from './api/analyze-day-fallback.js'; // Importato l'export default
+import reverseGeocodeModule from './api/reverse-geocode.js'; 
+import analyzeDayFallbackModule from './api/analyze-day-fallback.js'; 
 import queryNaturalLanguage from './api/query-natural-language.js'; // Nuovo import
 import recommendSpecies from './api/recommend-species.js'; // Nuovo import
 import { mcpClient } from './lib/services/mcp-client.service.js'; // MCP CLIENT
@@ -83,12 +86,12 @@ app.get('/api/update-cache', async (req, res) => {
 // Route per l'autocomplete e il reverse geocoding
 app.get('/api/autocomplete', autocompleteHandler);
 
-// CORREZIONE: Usare l'export default corretto
-app.get('/api/reverse-geocode', reverseGeocodeModule);
+// CORREZIONE: Usa l'export default corretto (eccesso di default)
+app.get('/api/reverse-geocode', reverseGeocodeModule.default);
 
 
 // =========================================================================
-// --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) - Aggiornato ---
+// --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) - AGGIORNATO ---
 // =========================================================================
 app.post('/api/get-analysis', async (req, res) => {
     try {
@@ -97,25 +100,22 @@ app.post('/api/get-analysis', async (req, res) => {
             return res.status(400).json({ error: 'Coordinate mancanti', status: 'error' });
         }
         
-        // La chiave cache deve corrispondere a quella usata da proactive_analysis.service.js
+        // La chiave di cache deve usare la stessa precisione del client e del fallback
         const cacheKey = `${parseFloat(lat).toFixed(3)}_${parseFloat(lon).toFixed(3)}`;
         const cachedData = analysisCache.get(cacheKey);
         
         if (cachedData) {
-            // ✅ Ritorna l'oggetto completo con metadata
-            // Controlla se i dati sono nel nuovo formato (Object con 'analysis' property)
-            const isNewFormat = typeof cachedData === 'object' && cachedData !== null && 'analysis' in cachedData;
-
-            // Log per tracciare l'HIT e il formato utilizzato
-            console.log(`[Phantom-API] ✅ Cache HIT per analisi ${cacheKey}. Formato: ${isNewFormat ? 'Nuovo' : 'Vecchio'}`);
+            console.log(`[Phantom-API] ✅ Cache HIT per analisi ${cacheKey}. Risposta istantanea.`);
             
+            // Gestisce la retrocompatibilità se la cache contiene ancora una stringa (vecchio formato)
+            // e restituisce l'oggetto completo con metadata se è nel nuovo formato.
+            const isNewFormat = typeof cachedData === 'object' && cachedData !== null && cachedData.analysis;
+            
+            // La risposta unificata del server è:
             return res.json({
                 status: 'ready',
-                // Nel nuovo formato, l'analisi è in cachedData.analysis
-                // Nel vecchio formato (stringa), cachedData è l'analisi stessa
-                data: {
-                    analysis: isNewFormat ? cachedData.analysis : cachedData,
-                },
+                // Estrae l'analisi dal campo 'analysis' se è il nuovo formato, altrimenti usa l'intero dato.
+                analysis: isNewFormat ? cachedData.analysis : cachedData,
                 metadata: isNewFormat ? {
                     locationName: cachedData.locationName,
                     modelUsed: cachedData.modelUsed,
@@ -125,6 +125,7 @@ app.post('/api/get-analysis', async (req, res) => {
                     timingMs: cachedData.timingMs,
                 } : null, // Non ci sono metadati per il vecchio formato
             });
+
         } else {
             console.log(`[Phantom-API] ⏳ Cache MISS per analisi ${cacheKey}. Il client userà il fallback.`);
             return res.status(202).json({ status: 'pending', message: 'Analisi in elaborazione...' });
@@ -139,8 +140,8 @@ app.post('/api/get-analysis', async (req, res) => {
 // =========================================================================
 // --- [FALLBACK] ENDPOINT ON-DEMAND - ORA USA MCP ---
 // =========================================================================
-// Il modulo analyzeDayFallbackModule gestisce l'export in modo che venga usato direttamente
-app.post('/api/analyze-day-fallback', analyzeDayFallbackModule);
+// CORREZIONE: Usa l'export default corretto
+app.post('/api/analyze-day-fallback', analyzeDayFallbackModule.default);
 
 // === NEW: Advanced AI Features ===
 app.post('/api/query', queryNaturalLanguage);
@@ -184,4 +185,4 @@ process.on('SIGTERM', async () => {
 });
 
 // Gestione dell'errore di avvio
-startServer();
+startServer(); 
