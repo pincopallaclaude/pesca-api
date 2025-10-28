@@ -89,7 +89,7 @@ app.get('/api/update-cache', async (req, res) => {
 app.get('/api/autocomplete', autocompleteHandler);
 
 // CORREZIONE: Usa l'export default corretto (eccesso di default)
-app.get('/api/reverse-geocode', reverseGeocodeModule.default);
+app.get('/api/reverse-geocode', reverseGeocodeModule);
 
 
 // =========================================================================
@@ -143,7 +143,7 @@ app.post('/api/get-analysis', async (req, res) => {
 // --- [FALLBACK] ENDPOINT ON-DEMAND - ORA USA MCP ---
 // =========================================================================
 // CORREZIONE: Usa l'export default corretto
-app.post('/api/analyze-day-fallback', analyzeDayFallbackModule.default);
+app.post('/api/analyze-day-fallback', analyzeDayFallbackModule);
 
 // === NEW: Advanced AI Features ===
 app.post('/api/query', queryNaturalLanguage);
