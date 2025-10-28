@@ -168,7 +168,7 @@ async function startServer() {
 
         // Step 3: Avvia Express
         app.listen(PORT, '0.0.0.0', () => {
-          console.log(`[SERVER STARTUP] 🎣 Server pronto su porta ${PORT}`);
+          console.log(`[SERVER STARTUP] 🎣 Server pronto su host 0.0.0.0, porta ${PORT}`);
           console.log(`[SERVER STARTUP] 🤖 Sistema MCP-Enhanced attivo`);
         });
         
