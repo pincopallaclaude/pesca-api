@@ -12,5 +12,8 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 
-# 4. Usa il server di test
+# 4. Esponi la porta su cui l'app ascolterà
+EXPOSE 8080
+
+# 5. Usa il server di test
 CMD [ "npm", "run", "start" ]
