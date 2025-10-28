@@ -1,6 +1,8 @@
 // server.js
 
 // Load environment variables
+console.log('--- [SERVER BOOT] Entry point server.js caricato ---');
+
 import 'dotenv/config'; // Usa il nuovo standard ES Module per caricare le variabili d'ambiente
 import express from 'express';
 import cors from 'cors';
