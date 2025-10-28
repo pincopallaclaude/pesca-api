@@ -5,18 +5,13 @@ primary_region = 'ams'
 [build]
   dockerfile = 'Dockerfile.simple'
 
-# La sezione [http_service] è corretta, ma deve fare riferimento a un processo
+# Questa sezione ora si affida al comando CMD del Dockerfile
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = false # Disabilita lo spegnimento automatico
+  auto_stop_machines = false
   auto_start_machines = true
-  min_machines_running = 1   # Forza almeno una macchina a rimanere accesa
-  processes = ["app"]
-
-# Definiamo il processo a cui si riferisce la riga sopra
-[processes]
-  app = "npm start"
+  min_machines_running = 1
   
 [[vm]]
   memory = '256mb'

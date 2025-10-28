@@ -1,165 +1,155 @@
 // server.js
 
-// Load environment variables
 console.log('--- [SERVER BOOT] Entry point server.js caricato ---');
+console.log('[SERVER BOOT] 📦 Tentativo di importazione dei moduli...');
 
-import 'dotenv/config'; // Usa il nuovo standard ES Module per caricare le variabili d'ambiente
-import express from 'express';
-import cors from 'cors';
-import path from 'path'; // Mantenuto per coerenza, anche se non strettamente usato per static files
-import { fileURLToPath } from 'url'; // Necessario per __dirname se fosse usato per path assoluti
+// Uso di await di primo livello (Top-Level Await) per le importazioni
+try {
+    // Importazioni di librerie standard
+    const { default: express } = await import('express');
+    const { default: cors } = await import('cors');
+    await import('dotenv/config');
 
+    // Moduli core e servizi
+    const { fetchAndProcessForecast, POSILLIPO_COORDS } = await import('./lib/forecast-logic.js');
+    console.log('[SERVER BOOT] ✅ forecast-logic importato');
 
-// Servizi e logiche
-import { fetchAndProcessForecast, POSILLIPO_COORDS } from './lib/forecast-logic.js'; // Importato POSILLIPO_COORDS
-import { myCache, analysisCache } from './lib/utils/cache.manager.js';
-import { loadKnowledgeBaseFromFile } from './lib/services/vector.service.js'; // Ancora necessario per pre-caricare il DB
+    const { analysisCache } = await import('./lib/utils/cache.manager.js');
+    console.log('[SERVER BOOT] ✅ cache.manager importato');
 
+    const { loadKnowledgeBaseFromFile } = await import('./lib/services/vector.service.js');
+    console.log('[SERVER BOOT] ✅ vector.service importato');
 
-// Handler API
-import autocompleteHandler from './api/autocomplete.js';
-import reverseGeocodeModule from './api/reverse-geocode.js'; 
-import analyzeDayFallbackModule from './api/analyze-day-fallback.js'; 
-import queryNaturalLanguage from './api/query-natural-language.js'; // Nuovo import
-import recommendSpecies from './api/recommend-species.js'; // Nuovo import
-import { mcpClient } from './lib/services/mcp-client.service.js'; // MCP CLIENT
+    const { mcpClient } = await import('./lib/services/mcp-client.service.js');
+    console.log('[SERVER BOOT] ✅ mcp-client importato');
 
-// Validazione environment
-if (!process.env.GEMINI_API_KEY) {
-    console.error("FATAL ERROR: GEMINI_API_KEY not found!");
-    // In un ambiente che usa MCP, la chiave Gemini è ancora necessaria
-    // a meno che MCP non gestisca tutto il routing. Manteniamo il check per sicurezza.
-    process.exit(1);
-}
+    // Handler API
+    const { default: autocompleteHandler } = await import('./api/autocomplete.js');
+    const { default: reverseGeocodeModule } = await import('./api/reverse-geocode.js');
+    const { default: analyzeDayFallbackModule } = await import('./api/analyze-day-fallback.js');
+    const { default: queryNaturalLanguage } = await import('./api/query-natural-language.js');
+    const { default: recommendSpecies } = await import('./api/recommend-species.js');
+    console.log('[SERVER BOOT] ✅ Tutti gli handler API importati');
 
-const app = express();
-const PORT = process.env.PORT || 8080;
+    console.log('--- [SERVER BOOT] Tutti i moduli importati con successo ---');
 
-// --- MIDDLEWARE ---
-app.use(cors()); // Abilita CORS per tutte le rotte
-app.use(express.json()); // Per parsare i body delle richieste in JSON
+    // Validazione environment
+    if (!process.env.GEMINI_API_KEY) {
+        console.error("FATAL ERROR: GEMINI_API_KEY not found!");
+        process.exit(1);
+    }
 
-// --- ROUTES ---
+    const app = express();
+    const PORT = process.env.PORT || 8080;
 
-// Route di controllo "Sono vivo?"
-app.get('/', (req, res) => res.status(200).send('Pesca API Server is running!'));
+    // --- MIDDLEWARE ---
+    app.use(cors());
+    app.use(express.json());
 
-// Route per il controllo di stato e la connettività MCP
-app.get('/health', async (req, res) => {
-    // Nota: Ho modificato questa route per riflettere un pattern più comune
-    // di health check e per includere lo stato MCP
-    const mcpStatus = mcpClient.connected ? 'connected' : 'disconnected';
-    res.json({
-        status: 'ok',
-        mcp: mcpStatus,
-        timestamp: new Date().toISOString()
+    // --- ROUTES ---
+
+    // Route di controllo "Sono vivo?"
+    app.get('/', (req, res) => res.status(200).send('Pesca API Server is running!'));
+
+    // Route per il controllo di stato e la connettività MCP
+    app.get('/health', (req, res) => {
+        const mcpStatus = mcpClient.connected ? 'connected' : 'disconnected';
+        res.json({ status: 'ok', mcp: mcpStatus, timestamp: new Date().toISOString() });
     });
-});
 
-// Route principale per i dati meteo
-app.get('/api/forecast', async (req, res) => {
-    try {
-        // USO POSILLIPO_COORDS come default se la location non è specificata
-        const location = req.query.location || POSILLIPO_COORDS;
-        const forecastData = await fetchAndProcessForecast(location);
-        res.json(forecastData);
-    } catch (error) {
-        console.error("[Server Error] /api/forecast:", error.message, error.stack);
-        res.status(500).json({ message: "Error getting forecast data.", error: error.message });
-    }
-});
-
-// Route per l'aggiornamento forzato della cache
-app.get('/api/update-cache', async (req, res) => {
-    const secret = req.query.secret;
-    if (secret !== process.env.CRON_SECRET_KEY) {
-        return res.status(401).json({ message: 'Unauthorized' });
-    }
-    try {
-        // Aggiorna la cache per la località di Napoli (o default)
-        await fetchAndProcessForecast(POSILLIPO_COORDS); // Uso POSILLIPO_COORDS
-        return res.status(200).json({ status: 'ok' });
-    } catch (error) {
-        console.error("[CRON JOB] Error during update:", error.message);
-        return res.status(500).json({ status: 'error' });
-    }
-});
-
-// Route per l'autocomplete e il reverse geocoding
-app.get('/api/autocomplete', autocompleteHandler);
-
-// CORREZIONE: Usa l'export default corretto (eccesso di default)
-app.get('/api/reverse-geocode', reverseGeocodeModule);
-
-
-// =========================================================================
-// --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) - AGGIORNATO ---
-// =========================================================================
-app.post('/api/get-analysis', async (req, res) => {
-    try {
-        const { lat, lon } = req.body;
-        if (!lat || !lon) {
-            return res.status(400).json({ error: 'Coordinate mancanti', status: 'error' });
+    // Route principale per i dati meteo
+    app.get('/api/forecast', async (req, res) => {
+        try {
+            const location = req.query.location || POSILLIPO_COORDS;
+            const forecastData = await fetchAndProcessForecast(location);
+            res.json(forecastData);
+        } catch (error) {
+            console.error("[Server Error] /api/forecast:", error.message);
+            res.status(500).json({ message: "Error getting forecast data." });
         }
-        
-        // La chiave di cache deve usare la stessa precisione del client e del fallback
-        const cacheKey = `${parseFloat(lat).toFixed(3)}_${parseFloat(lon).toFixed(3)}`;
-        const cachedData = analysisCache.get(cacheKey);
-        
-        if (cachedData) {
-            console.log(`[Phantom-API] ✅ Cache HIT per analisi ${cacheKey}. Risposta istantanea.`);
+    });
+
+    // Route per l'autocomplete e il reverse geocoding
+    app.get('/api/autocomplete', autocompleteHandler);
+    app.get('/api/reverse-geocode', reverseGeocodeModule);
+
+    // RE-ADDED: Route per l'aggiornamento forzato della cache (Cron Job)
+    app.get('/api/update-cache', async (req, res) => {
+        const secret = req.query.secret;
+        if (secret !== process.env.CRON_SECRET_KEY) {
+            console.warn('[CRON JOB] Tentativo di accesso non autorizzato a /api/update-cache');
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+        try {
+            // Aggiorna i dati per la posizione di default (Posillipo)
+            await fetchAndProcessForecast(POSILLIPO_COORDS); 
+            console.log('[CRON JOB] ✅ Cache di Posillipo aggiornata con successo.');
+            return res.status(200).json({ status: 'ok', message: 'Cache aggiornata' });
+        } catch (error) {
+            console.error("[CRON JOB] ❌ Errore durante l'aggiornamento della cache:", error.message);
+            return res.status(500).json({ status: 'error', message: error.message });
+        }
+    });
+
+
+    // =========================================================================
+    // --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) ---
+    // =========================================================================
+    app.post('/api/get-analysis', async (req, res) => {
+        try {
+            const { lat, lon } = req.body;
+            if (!lat || !lon) return res.status(400).json({ error: 'Coordinate mancanti' });
             
-            // Gestisce la retrocompatibilità se la cache contiene ancora una stringa (vecchio formato)
-            // e restituisce l'oggetto completo con metadata se è nel nuovo formato.
-            const isNewFormat = typeof cachedData === 'object' && cachedData !== null && cachedData.analysis;
+            // Chiave di cache con precisione fissa
+            const cacheKey = `${parseFloat(lat).toFixed(3)}_${parseFloat(lon).toFixed(3)}`;
+            const cachedData = analysisCache.get(cacheKey);
             
-            // La risposta unificata del server è:
-            return res.json({
-                status: 'ready',
-                // Estrae l'analisi dal campo 'analysis' se è il nuovo formato, altrimenti usa l'intero dato.
-                analysis: isNewFormat ? cachedData.analysis : cachedData,
-                metadata: isNewFormat ? {
+            if (cachedData) {
+                console.log(`[Phantom-API] ✅ Cache HIT per ${cacheKey}. Risposta istantanea.`);
+                const isNewFormat = typeof cachedData === 'object' && cachedData.analysis;
+                
+                // Estrae l'analisi e i metadati in base al formato
+                const analysisResult = isNewFormat ? cachedData.analysis : cachedData;
+                const metadata = isNewFormat ? {
                     locationName: cachedData.locationName,
                     modelUsed: cachedData.modelUsed,
                     modelProvider: cachedData.modelProvider,
                     complexityLevel: cachedData.complexityLevel,
                     generatedAt: cachedData.generatedAt,
                     timingMs: cachedData.timingMs,
-                } : null, // Non ci sono metadati per il vecchio formato
-            });
-
-        } else {
-            console.log(`[Phantom-API] ⏳ Cache MISS per analisi ${cacheKey}. Il client userà il fallback.`);
-            return res.status(202).json({ status: 'pending', message: 'Analisi in elaborazione...' });
+                } : null;
+                
+                res.json({
+                    status: 'ready',
+                    analysis: analysisResult,
+                    metadata: metadata,
+                });
+            } else {
+                console.log(`[Phantom-API] ⏳ Cache MISS per ${cacheKey}. Il client userà il fallback.`);
+                // Risposta 202 (Accepted) per indicare che l'elaborazione è iniziata/attesa dal client
+                res.status(202).json({ status: 'pending', message: 'Analisi in elaborazione...' });
+            }
+        } catch (error) {
+            console.error('[GET Analysis] ❌ Errore:', error);
+            res.status(500).json({ error: 'Errore recupero analisi' });
         }
-    } catch (error) {
-        console.error('[GET Analysis] ❌ Errore:', error);
-        res.status(500).json({ error: 'Errore recupero analisi', status: 'error' });
-    }
-});
+    });
 
+    // Endpoint on-demand (Fallback)
+    app.post('/api/analyze-day-fallback', analyzeDayFallbackModule);
 
-// =========================================================================
-// --- [FALLBACK] ENDPOINT ON-DEMAND - ORA USA MCP ---
-// =========================================================================
-// CORREZIONE: Usa l'export default corretto
-app.post('/api/analyze-day-fallback', analyzeDayFallbackModule);
+    // Advanced AI Features (RAG e Raccomandazioni)
+    app.post('/api/query', queryNaturalLanguage);
+    app.post('/api/recommend-species', recommendSpecies);
 
-// === NEW: Advanced AI Features ===
-app.post('/api/query', queryNaturalLanguage);
-app.post('/api/recommend-species', recommendSpecies);
-
-// --- AVVIO E SHUTDOWN ---
-async function startServer() {
-    try {
+    // --- AVVIO E SHUTDOWN ---
+    async function startServer() {
         console.log('[SERVER STARTUP] 🚀 Inizializzazione...');
         
-
-        // Step 1: Carica Vector DB PRIMA (il server MCP ne ha bisogno)
+        // Step 1: Carica Vector DB
         console.log('[SERVER STARTUP] 📖 Caricamento knowledge base...');
         await loadKnowledgeBaseFromFile();
         console.log('[SERVER STARTUP] ✅ Knowledge base caricata');
-
 
         // Step 2: Connette client MCP
         console.log('[SERVER STARTUP] 🔌 Connessione MCP client...');
@@ -171,20 +161,20 @@ async function startServer() {
           console.log(`[SERVER STARTUP] 🎣 Server pronto su host 0.0.0.0, porta ${PORT}`);
           console.log(`[SERVER STARTUP] 🤖 Sistema MCP-Enhanced attivo`);
         });
-        
-
-    } catch (error) {
-        console.error('[FATAL STARTUP CRASH]', error);
-        process.exit(1);
     }
+
+    // RE-ADDED: Gestione dello shutdown per chiudere correttamente la connessione MCP
+    process.on('SIGTERM', async () => {
+        console.log('📴 SIGTERM ricevuto, shutdown graceful...');
+        await mcpClient.disconnect();
+        process.exit(0);
+    });
+    
+    // Avvia l'applicazione
+    startServer();
+
+} catch (e) {
+    console.error('--- [FATAL BOOT ERROR] Errore durante l\'avvio e le importazioni ---');
+    console.error(e);
+    process.exit(1);
 }
-
-// Gestione dello shutdown per chiudere correttamente la connessione MCP
-process.on('SIGTERM', async () => {
-    console.log('📴 SIGTERM ricevuto, shutdown graceful...');
-    await mcpClient.disconnect();
-    process.exit(0);
-});
-
-// Gestione dell'errore di avvio
-startServer(); 

@@ -39,13 +39,15 @@ export async function analyzeWithBestModel({ weatherData, location, forceModel =
             log(`[MCP Multi-Model] 🎯 Routing automatico: ${selectedModel} (Claude: ${claudeAvailable}, Mistral: ${mistralAvailable})`);
         }
 
-        // --- RAG (Retrieval-Augmented Generation) ---
-        const searchQuery = `Condizioni meteo pesca per ${location} con vento ${weatherData?.dailyWindSpeedKn?.toFixed(1) || 'N/D'} nodi, mare ${weatherData.mare || 'N/D'}, temperatura acqua ${weatherData.temperaturaAvg || 'N/D'}°C`;
+        // --- RAG (Retrieval-Augmented Generation) - MODIFICATO PER QUERY PIÙ GENERICA ---
+        const simplifiedSeaState = (weatherData.mare || 'calmo').split(' ')[0]; // Estrae solo "Calmo", "Mosso", etc.
+        const searchQuery = `tecniche di pesca ${location} con mare ${simplifiedSeaState} e vento moderato`;
+        
         const relevantDocs = await queryKnowledgeBase(searchQuery, 5);
         log(`[MCP Multi-Model] ✅ Trovati ${relevantDocs.length} documenti KB`);
 
-        // Costruisci il prompt arricchito
-        const enrichedPrompt = buildPrompt(weatherData, location, relevantDocs, complexity);
+        // Costruisci il prompt arricchito (MAPPATO relevantDocs in .text)
+        const enrichedPrompt = buildPrompt(weatherData, location, relevantDocs.map(d => d.text), complexity);
 
         let analysis;
         let modelUsed;
@@ -140,5 +142,9 @@ ${relevantDocs.map((doc, i) => `### Documento ${i + 1}\n${doc}`).join('\n')}
 ## Istruzioni
 ${complexity.level === 'high' ? 'Genera analisi APPROFONDITA e DETTAGLIATA. Condizioni complesse richiedono spiegazioni estese.' : 'Genera analisi CONCISA ma completa.'}
 Includi: 1. Valutazione condizioni generali 2. Specie target consigliate 3. Tecniche specifiche 4. Esche/attrezzatura 5. Orari ottimali.
-Stile: Professionale ma accessibile. Usa Markdown.`;
+Stile: Professionale ma accessibile.
+
+**REGOLE DI OUTPUT OBBLIGATORIE:**
+- **FORMATO:** La risposta DEVE essere unicamente testo formattato in Markdown.
+- **NO JSON:** NON includere MAI \`\`\`json, oggetti JSON o codice JSON nella risposta.`;
 }

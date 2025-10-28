@@ -1,99 +1,54 @@
 // /api/analyze-day-fallback.js
 
 import { myCache, analysisCache } from '../lib/utils/cache.manager.js';
-import { fetchAndProcessForecast } from '../lib/forecast-logic.js';
 import { mcpClient } from '../lib/services/mcp-client.service.js';
-import { POSILLIPO_COORDS } from '../lib/utils/constants.js';    // Import CORRETTO
-import { areCoordsNear } from '../lib/utils/geo.utils.js';      // Import per confronto ROBUSTO
+import { normalizeCoords } from '../lib/utils/geo.utils.js';
 
-/**
- * Gestore per l'analisi del giorno on-demand, utilizzato come fallback o per
- * richieste dirette di analisi AI.
- * Recupera i dati meteo (da cache o fetch) e chiama il tool MCP
- * 'generate_analysis' per ottenere l'analisi di pesca in formato Markdown.
- * @param {object} req - Oggetto della richiesta Express (deve contenere lat, lon in body).
- * @param {object} res - Oggetto della risposta Express.
- */
-async function analyzeDayFallbackHandler(req, res) {
+export default async function analyzeDayFallbackHandler(req, res) {
     console.log(`[RAG-Fallback] Received on-demand request.`);
     const { lat, lon } = req.body;
-    
+
     try {
-        if (!lat || !lon) {
-            return res.status(400).json({ status: 'error', message: 'Lat/Lon richiesti.' });
-        }
-
-        const normalizedLocation = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
+        const normalizedLocation = normalizeCoords(`${lat},${lon}`);
         const forecastCacheKey = `forecast-data-v-refactored-${normalizedLocation}`;
-        let forecastForDay = myCache.get(forecastCacheKey)?.forecast?.[0];
+        const forecastData = myCache.get(forecastCacheKey);
 
-        if (!forecastForDay) {
-            console.warn(`[RAG-Fallback] Cache MISS per dati meteo. Forcing fetch.`);
-            const fullForecastData = await fetchAndProcessForecast(`${lat},${lon}`);
-            forecastForDay = fullForecastData?.forecast?.[0];
-        } else {
-             console.log('[RAG-Fallback] Cache HIT per dati meteo. Procedo all\'analisi.');
+        if (!forecastData || forecastData.forecast.length === 0) {
+            return res.status(404).json({ error: "Dati meteo non in cache. Eseguire prima un forecast." });
         }
+        
+        console.log(`[RAG-Fallback] Cache HIT per dati meteo. Procedo all'analisi.`);
+        const firstDayForecast = forecastData.forecast[0];
 
-        if (!forecastForDay) {
-            throw new Error("Dati meteo non trovati né in cache né tramite fetch.");
-        }
-        
-        // Logica di fallback intelligente per il nome della località
-        let locationForTitle = 'località sconosciuta';
-        
-        if (forecastForDay.location?.name) {
-            locationForTitle = forecastForDay.location.name;
-        } else if (areCoordsNear(normalizedLocation, POSILLIPO_COORDS)) { // CONFRONTO ROBUSTO
-            locationForTitle = 'Zona Posillipo (Napoli)';
-        } else {
-            locationForTitle = normalizedLocation; // Fallback finale sulle coordinate normalizzate
-        }
-        
-        // **CHIAMATA CHIAVE: Usa il tool MCP**
-        const result = await mcpClient.callTool('generate_analysis', {
-            weatherData: forecastForDay,
-            location: locationForTitle,
+        // Usa lo stesso tool multi-model del flusso proattivo per coerenza
+        const result = await mcpClient.callTool('analyze_with_best_model', {
+            weatherData: firstDayForecast,
+            location: firstDayForecast.location?.name || normalizedLocation,
         });
-        
-        if (result.isError || !result.content || result.content.length === 0) {
-            const errorMessage = result.content?.[0]?.text || 'Errore sconosciuto dal tool MCP';
-            throw new Error(errorMessage);
-        }
-        
-        // La risposta del tool MCP è ora garantita (dal prompt) essere puro Markdown.
-        // Non è più necessaria alcuna logica di parsing o conversione JSON.
-        const finalAnalysis = result.content[0].text;
 
-        // =================================================================
-        // LOG DIAGNOSTICO: ISPEZIONA LA RISPOSTA GREZZA DELL'AI
-        console.log("--- INIZIO RISPOSTA GREZZA AI (FALLBACK) ---");
-        console.log(finalAnalysis);
-        console.log("--- FINE RISPOSTA GREZZA AI (FALLBACK) ---");
-        // =================================================================
-
-        if (!finalAnalysis || finalAnalysis.trim().length < 50) {
-            throw new Error("L'analisi MCP estratta è vuota o insufficiente.");
+        if (result.isError) {
+            throw new Error(result.content[0]?.text || 'Errore sconosciuto dal tool MCP');
         }
+
+        const analysis = result.content[0].text;
+        const metadata = result.metadata || {};
+
+        // Salva l'analisi appena generata nella cache per richieste future
+        const analysisCacheKey = `${parseFloat(lat).toFixed(3)}_${parseFloat(lon).toFixed(3)}`;
+        const enrichedCacheData = { analysis, metadata };
+        analysisCache.set(analysisCacheKey, enrichedCacheData);
         
-        const successResponse = {
-            status: 'success',
-            data: finalAnalysis.trim(),
-            metadata: result.metadata
-        };
+        console.log(`[RAG-Fallback] Analisi generata, cachata e inviata con successo.`);
         
-        // Caching del risultato
-        const analysisCacheKey = `analysis-v2-${normalizedLocation}`;
-        analysisCache.set(analysisCacheKey, finalAnalysis.trim());
-        console.log("[RAG-Fallback] Analisi cachata e inviata con successo.");
-        
-        return res.status(200).json(successResponse);
+        // Ritorna l'oggetto JSON strutturato che il frontend si aspetta
+        res.status(200).json({
+            status: 'ready',
+            analysis: analysis,
+            metadata: metadata,
+        });
 
     } catch (error) {
-        console.error("[RAG-Fallback] ERROR during on-demand analysis:", error.stack);
-        const errorMessage = error.message || "Errore sconosciuto durante l'elaborazione dell'analisi AI.";
-        return res.status(500).json({ status: 'error', message: errorMessage });
+        console.error("[RAG-Fallback] ❌ Errore:", error.message);
+        res.status(500).json({ error: `Fallback analysis failed: ${error.message}` });
     }
 }
-
-export default analyzeDayFallbackHandler;
