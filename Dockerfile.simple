@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y build-essential
 # 3. Procedi con il resto del setup come prima
 WORKDIR /app
 COPY package*.json ./
-RUN npm install --production
+RUN npm install
 COPY . .
 
 # 4. Usa il server di test

@@ -5,18 +5,19 @@ primary_region = 'ams'
 [build]
   dockerfile = 'Dockerfile.simple'
 
-# Sezione [http_service] definisce implicitamente i check sulla rotta '/'
-# e gestisce correttamente il routing del traffico HTTP/HTTPS
+# La sezione [http_service] è corretta, ma deve fare riferimento a un processo
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = false # Disabilita lo spegnimento automatico
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1   # Forza almeno una macchina a rimanere accesa
+  processes = ["app"]
 
+# Definiamo il processo a cui si riferisce la riga sopra
 [processes]
   app = "npm start"
-
+  
 [[vm]]
   memory = '256mb'
   cpu_kind = 'shared'
