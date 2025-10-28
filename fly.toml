@@ -1,7 +1,5 @@
-# fly.toml app configuration file generated for pesca-api-v5 on 2025-10-15T13:06:30+01:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# fly.toml app configuration file generated for pesca-api-v5 on 2025-10-28
+# fly.toml app configuration file for pesca-api-v5
 
 app = 'pesca-api-v5'
 primary_region = 'ams'
@@ -9,13 +7,31 @@ primary_region = 'ams'
 [build]
   dockerfile = 'Dockerfile.simple'
 
-[http_service]
+# Definisce il processo che avvia la nostra app
+[processes]
+  app = 'npm start'
+
+# Definisce come il traffico HTTP raggiunge il nostro processo
+[[services]]
+  protocol = 'tcp'
   internal_port = 8080
-  force_https = true
-  auto_stop_machines = 'stop'
-  auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
+  processes = ['app'] # Collega questo servizio al processo 'app'
+
+  [services.concurrency]
+    type = 'connections'
+    hard_limit = 25
+    soft_limit = 20
+
+  [[services.ports]]
+    port = 80
+    handlers = ['http']
+
+  [[services.ports]]
+    port = 443
+    handlers = ['tls', 'http']
+
+  [services.http_options]
+    compress = true
 
 [[vm]]
   memory = '256mb'
