@@ -15,7 +15,16 @@ primary_region = 'ams'
 [[services]]
   protocol = 'tcp'
   internal_port = 8080
-  processes = ['app'] # Collega questo servizio al processo 'app'
+  processes = ['app']
+
+  # Aggiungi questo blocco per gli health checks
+  [[services.http_checks]]
+    interval = '10s'
+    timeout = '2s'
+    method = 'GET'
+    path = '/health' # Usa la nostra rotta /health esistente
+    grace_period = '5s'
+  # Fine del blocco aggiunto
 
   [services.concurrency]
     type = 'connections'
