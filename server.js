@@ -39,6 +39,13 @@ try {
         process.exit(1);
     }
 
+    // --- CARICAMENTO KNOWLEDGE BASE ALL'AVVIO ---
+    // Spostato qui per garantire che sia pronto prima dell'avvio del server.
+    console.log('[SERVER BOOT] 📖 Caricamento knowledge base in memoria...');
+    await loadKnowledgeBaseFromFile();
+    console.log('[SERVER BOOT] ✅ Knowledge base caricata');
+    // -----------------------------------------
+
     const app = express();
     const PORT = process.env.PORT || 8080;
 
@@ -146,10 +153,7 @@ try {
     async function startServer() {
         console.log('[SERVER STARTUP] 🚀 Inizializzazione...');
         
-        // Step 1: Carica Vector DB
-        console.log('[SERVER STARTUP] 📖 Caricamento knowledge base...');
-        await loadKnowledgeBaseFromFile();
-        console.log('[SERVER STARTUP] ✅ Knowledge base caricata');
+        // Step 1: Carica Vector DB (RIMOSSO: Eseguito precedentemente nel blocco principale)
 
         // Step 2: Connette client MCP
         console.log('[SERVER STARTUP] 🔌 Connessione MCP client...');
