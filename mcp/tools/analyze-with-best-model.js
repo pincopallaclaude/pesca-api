@@ -48,15 +48,18 @@ export async function analyzeWithBestModel({ weatherData, location, forceModel =
 
         // --- RAG - Logica di Ricerca Multi-Vettore ---
         const cleanLocation = location.split('(')[0].trim();
-        // Usa la descrizione completa dello stato del mare (es. "poco mosso") invece della sigla.
-        const seaState = weatherData.seaStateDescription || 'calmo'; 
+        
+        // Estrae solo l'ultima e più significativa parola chiave dallo stato del mare per una ricerca RAG più mirata.
+        // Esempio: "Poco Mosso" -> "mosso"
+        const seaStateKeyword = (weatherData.seaStateDescription || 'calmo').split(' ').pop().toLowerCase();
 
         // 1. Crea una query primaria, molto specifica.
-        const primaryQuery = `tecniche pesca ${cleanLocation} con mare ${seaState}`;
+        // Si usa 'mare [parola chiave]' per migliorare l'efficacia del vettorizzatore.
+        const primaryQuery = `tecniche pesca ${cleanLocation} mare ${seaStateKeyword}`;
 
         // 2. Crea query secondarie, più generiche, per ampliare la ricerca.
         const secondaryQueries = [
-            `consigli pesca con mare ${seaState}`,
+            `consigli pesca mare ${seaStateKeyword}`,
             `migliori spot ${cleanLocation}`
         ];
 
