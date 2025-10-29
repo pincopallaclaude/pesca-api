@@ -41,7 +41,8 @@ try {
 
     // --- CARICAMENTO KNOWLEDGE BASE ALL'AVVIO ---
     // Spostato qui per garantire che sia pronto prima dell'avvio del server.
-    console.log('[SERVER BOOT] 📖 Caricamento knowledge base in memoria...');
+    // Messaggio di log aggiornato per riflettere la costruzione dell'indice.
+    console.log('[SERVER BOOT] 📖 Caricamento knowledge base e costruzione indice...');
     await loadKnowledgeBaseFromFile();
     console.log('[SERVER BOOT] ✅ Knowledge base caricata');
     // -----------------------------------------
