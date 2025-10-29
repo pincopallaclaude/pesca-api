@@ -3,8 +3,7 @@
 import { generateAnalysis as geminiGenerate } from '../../lib/services/gemini.service.js';
 import { generateWithMistral, isMistralAvailable } from '../../lib/services/mistral.service.js';
 import { generateWithClaude, isClaudeAvailable } from '../../lib/services/claude.service.js';
-// AGGIORNATO: Importa l'indice per il controllo di stato
-import { queryKnowledgeBase, index } from '../../lib/services/vector.service.js'; 
+import { queryKnowledgeBase } from '../../lib/services/vector.service.js';
 
 // Funzione di logging unificata che scrive su stderr per non contaminare stdout
 const log = (msg) => process.stderr.write(`${msg}\n`);
@@ -16,12 +15,6 @@ const log = (msg) => process.stderr.write(`${msg}\n`);
 export async function analyzeWithBestModel({ weatherData, location, forceModel = null }) {
     const startTime = Date.now();
     try {
-        // NUOVO CONTROLLO DI SICUREZZA
-        if (!index) {
-            log('[MCP Multi-Model] ⚠️ Indice KB non pronto. Utilizzo solo LLM senza grounding RAG.');
-            // NON lanciamo un errore fatale, ma avvisiamo e procediamo senza RAG.
-        }
-
         log(`[MCP Multi-Model] 🤖 Routing per ${location}...`);
 
         const complexity = assessWeatherComplexity(weatherData);
@@ -54,42 +47,38 @@ export async function analyzeWithBestModel({ weatherData, location, forceModel =
         log(`[MCP Multi-Model] 🎯 Routing Decisione: ${selectedModel.toUpperCase()} | Motivo: ${routingReason}`);
 
         // --- RAG - Logica di Ricerca Multi-Vettore ---
-        let relevantDocs = [];
+        // Pulisce la location da dettagli come "(zona Napoli)"
+        const cleanLocation = location.split('(')[0].trim();
+        // Estrae solo la prima parola dello stato del mare e la rende minuscola
+        const seaState = (weatherData.mare || 'calmo').split(' ')[0].toLowerCase();
+
+        // 1. Crea una query primaria, molto specifica.
+        const primaryQuery = `tecniche pesca ${cleanLocation} con mare ${seaState}`;
+
+        // 2. Crea query secondarie, più generiche, per ampliare la ricerca.
+        const secondaryQueries = [
+            `consigli pesca con mare ${seaState}`,
+            `migliori spot ${cleanLocation}`
+        ];
+
+        // 3. Esegui tutte le query in parallelo.
+        const [primaryDocs, secondaryDocs] = await Promise.all([
+            queryKnowledgeBase(primaryQuery, 3), // Cerca 3 documenti per la query principale
+            // Combina le query secondarie in una singola stringa per la ricerca generica
+            queryKnowledgeBase(secondaryQueries.join(' '), 2) 
+        ]);
+
+        // 4. Unisci e deduplica i risultati.
+        const allDocsMap = new Map();
+        [...primaryDocs, ...secondaryDocs].forEach(doc => {
+            // Usiamo il contenuto del testo come chiave per evitare duplicati
+            if (doc && doc.text) {
+                allDocsMap.set(doc.text, doc);
+            }
+        });
+        const relevantDocs = Array.from(allDocsMap.values());
         
-        if (index) { // Esegue RAG solo se l'indice è pronto
-            // Pulisce la location da dettagli come "(zona Napoli)"
-            const cleanLocation = location.split('(')[0].trim();
-            // Estrae solo la prima parola dello stato del mare e la rende minuscola
-            const seaState = (weatherData.mare || 'calmo').split(' ')[0].toLowerCase();
-
-            // 1. Crea una query primaria, molto specifica.
-            const primaryQuery = `tecniche pesca ${cleanLocation} con mare ${seaState}`;
-
-            // 2. Crea query secondarie, più generiche, per ampliare la ricerca.
-            const secondaryQueries = [
-                `consigli pesca con mare ${seaState}`,
-                `migliori spot ${cleanLocation}`
-            ];
-
-            // 3. Esegui tutte le query in parallelo.
-            const [primaryDocs, secondaryDocs] = await Promise.all([
-                queryKnowledgeBase(primaryQuery, 3), // Cerca 3 documenti per la query principale
-                // Combina le query secondarie in una singola stringa per la ricerca generica
-                queryKnowledgeBase(secondaryQueries.join(' '), 2) 
-            ]);
-
-            // 4. Unisci e deduplica i risultati.
-            const allDocsMap = new Map();
-            [...primaryDocs, ...secondaryDocs].forEach(doc => {
-                // Usiamo il contenuto del testo come chiave per evitare duplicati
-                if (doc && doc.text) {
-                    allDocsMap.set(doc.text, doc);
-                }
-            });
-            relevantDocs = Array.from(allDocsMap.values());
-            
-            log(`[MCP Multi-Model] ✅ Trovati ${relevantDocs.length} documenti KB per query "${primaryQuery}" e altre`);
-        }
+        log(`[MCP Multi-Model] ✅ Trovati ${relevantDocs.length} documenti KB per query "${primaryQuery}" e altre`);
 
         // Costruisci il prompt arricchito (MAPPATO relevantDocs in .text)
         const enrichedPrompt = buildPrompt(weatherData, location, relevantDocs.map(d => d.text), complexity);
