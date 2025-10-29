@@ -47,19 +47,17 @@ export async function analyzeWithBestModel({ weatherData, location, forceModel =
         log(`[MCP Multi-Model] 🎯 Routing Decisione: ${selectedModel.toUpperCase()} | Motivo: ${routingReason}`);
 
         // --- RAG - Logica di Ricerca Multi-Vettore ---
+        // Pulisce la location da dettagli come "(zona Napoli)"
         const cleanLocation = location.split('(')[0].trim();
-        
-        // Estrae solo l'ultima e più significativa parola chiave dallo stato del mare per una ricerca RAG più mirata.
-        // Esempio: "Poco Mosso" -> "mosso"
-        const seaStateKeyword = (weatherData.seaStateDescription || 'calmo').split(' ').pop().toLowerCase();
+        // Estrae solo la prima parola dello stato del mare e la rende minuscola
+        const seaState = (weatherData.mare || 'calmo').split(' ')[0].toLowerCase();
 
         // 1. Crea una query primaria, molto specifica.
-        // Si usa 'mare [parola chiave]' per migliorare l'efficacia del vettorizzatore.
-        const primaryQuery = `tecniche pesca ${cleanLocation} mare ${seaStateKeyword}`;
+        const primaryQuery = `tecniche pesca ${cleanLocation} con mare ${seaState}`;
 
         // 2. Crea query secondarie, più generiche, per ampliare la ricerca.
         const secondaryQueries = [
-            `consigli pesca mare ${seaStateKeyword}`,
+            `consigli pesca con mare ${seaState}`,
             `migliori spot ${cleanLocation}`
         ];
 
@@ -167,8 +165,6 @@ function buildPrompt(weatherData, location, relevantDocs, complexity) {
     const summaryData = { ...weatherData };
     delete summaryData.hourly;
     delete summaryData.pescaScoreData;
-    // Rimuoviamo il vecchio campo "mare" che contiene sigle
-    delete summaryData.mare;
 
     return `
 # Analisi Pesca per ${location}
