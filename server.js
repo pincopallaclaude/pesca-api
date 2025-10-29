@@ -7,7 +7,8 @@ import 'dotenv/config';
 // Moduli core e servizi
 import { fetchAndProcessForecast, POSILLIPO_COORDS } from './lib/forecast-logic.js';
 import { analysisCache } from './lib/utils/cache.manager.js';
-import { loadKnowledgeBaseFromFile } from './lib/services/vector.service.js';
+// AGGIORNATO: Importa initKnowledgeBase al posto di loadKnowledgeBaseFromFile
+import { initKnowledgeBase } from './lib/services/vector.service.js';
 import { mcpClient } from './lib/services/mcp-client.service.js';
 
 // Handler API
@@ -134,7 +135,8 @@ async function startServer() {
 
         // 2. Carica la KB e costruisce l'indice. Operazione bloccante.
         console.log('[SERVER STARTUP] 📖 Caricamento knowledge base e costruzione indice...');
-        await loadKnowledgeBaseFromFile();
+        // AGGIORNATO: Chiamata a initKnowledgeBase
+        await initKnowledgeBase(); 
         console.log('[SERVER STARTUP] ✅ Indice KB pronto.');
 
         // 3. Connetti il client MCP.
