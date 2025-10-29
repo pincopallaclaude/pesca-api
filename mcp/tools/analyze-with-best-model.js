@@ -179,8 +179,6 @@ Includi: 1. Valutazione condizioni generali 2. Specie target consigliate 3. Tecn
 Stile: Professionale ma accessibile.
 
 **REGOLE DI OUTPUT OBBLIGATORIE:**
-- **FORMATO:** La tua risposta DEVE essere unicamente testo formattato in Markdown.
-- **NO JSON:** NON rispondere con JSON. NON formattare la tua risposta come un oggetto JSON.
-- **ESEMPIO NEGATIVO (COSA NON FARE):** Non iniziare la tua risposta con \`{ "titolo": "...", ... }\`.
-- **ESEMPIO POSITIVO (COSA FARE):** Inizia la tua risposta direttamente con un header Markdown, es: \`### Analisi di Pesca per Posillipo\`.`;
+- **FORMATO:** La risposta DEVE essere unicamente testo formattato in Markdown.
+- **NO JSON:** NON includere MAI \`\`\`json, oggetti JSON o codice JSON nella risposta.`;
 }
