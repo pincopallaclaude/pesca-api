@@ -1,18 +1,17 @@
-# 1. Usa l'immagine "full" di Node.js, che contiene Python.
+# Usa l'immagine "full" di Node.js, che contiene Python e altri tool.
 FROM node:20
 
-# 2. Installa gli strumenti di compilazione necessari
-# (Questa immagine li ha già, ma lo lasciamo per sicurezza)
+# Installa gli strumenti di compilazione necessari per moduli nativi come hnswlib-node
 RUN apt-get update && apt-get install -y build-essential
 
-# 3. Procedi con il setup
+# Procedi con il setup standard
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
 
-# 4. Esponi la porta
+# Esponi la porta su cui l'app ascolterà
 EXPOSE 8080
 
-# 5. Usa il comando di avvio corretto
+# Definisci il comando di avvio
 CMD [ "node", "server.js" ]
