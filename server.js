@@ -133,18 +133,18 @@ async function startServer() {
             throw new Error("FATAL ERROR: GEMINI_API_KEY not found!");
         }
 
-        // 2. Carica la KB e costruisce l'indice. Operazione bloccante.
-        console.log('[SERVER STARTUP] 📖 Caricamento knowledge base e costruzione indice...');
-        // AGGIORNATO: Chiamata a initKnowledgeBase
-        await initKnowledgeBase(); 
-        console.log('[SERVER STARTUP] ✅ Indice KB pronto.');
+        // La Knowledge Base (KB) ora viene inizializzata direttamente dal processo del MCP Server.
+        // La chiamata a initKnowledgeBase è stata rimossa da qui per evitare duplicazioni.
+        // console.log('[SERVER STARTUP] 📖 Caricamento knowledge base e costruzione indice...');
+        // await initKnowledgeBase(); 
+        // console.log('[SERVER STARTUP] ✅ Indice KB pronto.');
 
-        // 3. Connetti il client MCP.
+        // 2. Connetti il client MCP.
         console.log('[SERVER STARTUP] 🔌 Connessione MCP client...');
         await mcpClient.connect();
         console.log('[SERVER STARTUP] ✅ MCP client connesso.');
 
-        // 4. SOLO ORA, avvia il server Express per accettare richieste.
+        // 3. SOLO ORA, avvia il server Express per accettare richieste.
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`[SERVER STARTUP] 🎣 Server pronto su host 0.0.0.0, porta ${PORT}`);
             console.log(`[SERVER STARTUP] 🤖 Sistema MCP-Enhanced attivo`);

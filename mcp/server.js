@@ -16,7 +16,9 @@ import { analyzeWithBestModel } from './tools/analyze-with-best-model.js';
 import { recommendForSpecies } from './tools/recommend-for-species.js';
 import { extractIntent } from './tools/extract-intent.js';
 import { naturalLanguageForecast } from './tools/natural-language-forecast.js';
-import { getKnowledgeBase } from './resources/knowledge-base.js';
+// Aggiornato l'import della knowledge base e aggiunta l'inizializzazione del vector store
+import { knowledgeBase as kbResource } from './resources/knowledge-base.js'; 
+import { initKnowledgeBase } from '../lib/services/vector.service.js';
 
 // ==========================================
 // HELPER: Log su stderr invece di stdout
@@ -25,6 +27,16 @@ import { getKnowledgeBase } from './resources/knowledge-base.js';
 function serverLog(...args) {
     console.error(...args);
 }
+
+// ==========================================
+// INIZIALIZZAZIONE SINCRONA DELLA KNOWLEDGE BASE
+// Blocca l'esecuzione del modulo finché l'indice non è pronto
+// ==========================================
+serverLog('[MCP Server] 🚀 Inizializzazione Knowledge Base...');
+await initKnowledgeBase(); // Top-level await blocca l'avvio del server
+serverLog('[MCP Server] ✅ Knowledge Base pronta.');
+// ==========================================
+
 
 /**
  * Server MCP dedicato al RAG (Retrieval-Augmented Generation)
@@ -227,12 +239,14 @@ class RagMcpServer {
             serverLog(`[MCP Server] 📖 ReadResource: ${uri}`);
             
             if (uri === 'kb://fishing/knowledge_base') {
-                const kb = await getKnowledgeBase();
+                // Dopo l'inizializzazione sincrona (top-level await), kbResource dovrebbe contenere la knowledge base
+                const kb = kbResource;
                 return {
                     contents: [{
                         uri: uri,
                         mimeType: 'application/json',
-                        text: JSON.stringify(kb, null, 2)
+                        // Assumiamo che kbResource sia l'oggetto/array di dati
+                        text: JSON.stringify(kb, null, 2) 
                     }]
                 };
             }
