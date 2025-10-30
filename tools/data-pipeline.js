@@ -1,33 +1,22 @@
 // tools/data-pipeline.js
 
 import 'dotenv/config';
-import { fileURLToPath } from 'url'; // Import necessario per gestire import.meta.url
-console.log('[DEBUG] Variabili d\'ambiente caricate (dopo import config):', process.env.NODE_ENV);
-import SerpApi from 'google-search-results-nodejs'; // La libreria SerpApi potrebbe aver bisogno di una classe specifica, assumiamo sia l'export di default per la classe.
-import { GoogleSearch } from 'google-search-results-nodejs'; // Import specifico per la classe
+import { fileURLToPath } from 'url';
+import { GoogleSearch } from 'google-search-results-nodejs';
 import { embeddingModel, populateIndex, saveKnowledgeBaseToFile } from '../lib/services/vector.service.js';
 import fs from 'fs';
 import path from 'path';
 
-// DEFINIZIONE ESM: Crea l'equivalente di __filename e __dirname per i moduli ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// La libreria google-search-results-nodejs in ESM usa il costruttore GoogleSearch
-const search = new GoogleSearch(); 
-const CHUNK_SIZE = 200; // Riduciamo leggermente per i riassunti
-const BATCH_SIZE = 100; // Limite FISSO dell'API per batchEmbedContents (massimo 100 richieste)
+const search = new GoogleSearch(process.env.SERPAPI_API_KEY);
+const BATCH_SIZE = 100;
 
-/**
- * PHASE 1: Fetch organic search results from SerpApi.
- * @param {string} query - The search query.
- * @returns {Promise<Array<{content: string, source: string}>>} A list of documents with content and source URL.
- */
 async function fetchSearchResults(query) {
-    console.log(`[PIPELINE-SEARCH] Executing search for: "${query}"`);
+    console.log(`[PIPELINE-SEARCH] Eseguo ricerca per: "${query}"`);
     try {
         const params = {
-            api_key: process.env.SERPAPI_API_KEY,
             engine: "google",
             q: query,
             location: "Italy",
@@ -35,135 +24,95 @@ async function fetchSearchResults(query) {
             hl: "it",
         };
 
-        // Usa una Promise per gestire la callback della libreria
-        const results = await new Promise((resolve, reject) => {
-            search.json(params, (data) => {
-                resolve(data);
-            });
+        const data = await new Promise((resolve, reject) => {
+            search.json(params, resolve);
         });
 
-        const organicResults = results["organic_results"];
+        // 🔥 LOG CRUCIALE: Logga le ricerche residue di SerpApi
+        const searchesRemaining = data.search_information?.total_searches_left;
+        if (searchesRemaining !== undefined) {
+            console.log(`[PIPELINE-MONITOR] 📈 Ricerche SerpApi residue questo mese: ${searchesRemaining}`);
+        }
+
+        const organicResults = data["organic_results"];
         if (!organicResults || organicResults.length === 0) {
-            console.log(`[PIPELINE-SEARCH] No organic results found for "${query}".`);
+            console.warn(`[PIPELINE-SEARCH] Nessun risultato organico per "${query}".`);
             return [];
         }
 
-        // Estraiamo i riassunti (snippet) e i link
         const documents = organicResults
-            .filter(res => res.snippet) // Prendi solo i risultati che hanno uno snippet
-            .slice(0, 5) // Prendi i primi 5 risultati
+            .filter(res => res.snippet)
+            .slice(0, 5)
             .map(res => ({
-                content: res.snippet,
+                content: res.snippet.replace(/\[\.\.\.\]/g, '').trim(),
                 source: res.link,
             }));
         
-        console.log(`[PIPELINE-SEARCH] Found ${documents.length} relevant snippets for "${query}".`);
+        console.log(`[PIPELINE-SEARCH] Trovati ${documents.length} snippet pertinenti.`);
         return documents;
 
     } catch (error) {
-        console.error(`[PIPELINE-SEARCH] ERROR fetching results for "${query}":`, error.message);
-        return [];
+        // 🔥 LOG CRUCIALE: Logga l'errore specifico dell'API
+        console.error(`[PIPELINE-SEARCH] ❌ ERRORE durante la ricerca per "${query}":`, error.message || error);
+        // Lancia l'errore per bloccare la pipeline ed evitare di generare una KB incompleta
+        throw error;
     }
 }
 
-
-/**
- * PHASE 2: (Semplificata) I riassunti sono già dei "chunk" naturali.
- * Qui potremmo aggiungere logica di pulizia se necessario.
- * @param {Array<{content: string, source: string}>} documents - The documents from the search results.
- * @returns {Array<{content: string, source: string}>} The cleaned/validated chunks.
- */
-function processSnippets(documents) {
-    // Per ora, ci limitiamo a restituire i documenti così come sono.
-    // In futuro, potremmo pulire "[...]" o altre impurità.
-    const chunks = documents.map(doc => ({
-        ...doc,
-        content: doc.content.replace(/\[\.\.\.\]/g, '').trim(), // Esempio di pulizia
-    }));
-    console.log(`[PIPELINE-CHUNK] Processed ${chunks.length} snippets.`);
-    return chunks;
-}
-
-
-/**
- * PHASE 3: Generate embeddings and seed the vector database.
- * Implementa il batching per rispettare il limite API di 100 richieste per chiamata.
- */
 async function seedChunks(chunks) {
     if (chunks.length === 0) {
-        console.log('[PIPELINE-SEED] No chunks to seed. Exiting.');
+        console.warn('[PIPELINE-SEED] Nessun chunk da processare. La KB non verrà aggiornata.');
         return;
     }
 
-    let totalEmbeddings = 0;
+    let totalEmbeddingsGenerated = 0;
     
-    // Ciclo per suddividere i chunks in lotti da BATCH_SIZE (100)
     for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
         const batchChunks = chunks.slice(i, i + BATCH_SIZE);
-        
         try {
-            console.log(`[PIPELINE-SEED] Generating embeddings for batch ${Math.floor(i / BATCH_SIZE) + 1} (${batchChunks.length} chunks)...`);
+            console.log(`[PIPELINE-SEED] Genero embeddings per il batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(chunks.length / BATCH_SIZE)}...`);
             
-            // Crea il formato richiesto dall'API per il batch
             const contents = batchChunks.map(chunk => ({ content: { parts: [{ text: chunk.content }] } }));
-            
-            // Chiama l'API per il batch corrente
             const result = await embeddingModel.batchEmbedContents({ requests: contents });
             const embeddings = result.embeddings.map(e => e.values);
             
+            // 🔥 LOG CRUCIALE: Verifica di coerenza
             if (embeddings.length !== batchChunks.length) {
-                throw new Error(`Mismatch in batch ${i}: expected ${batchChunks.length}, got ${embeddings.length}.`);
+                console.error(`[PIPELINE-SEED] ❌ ERRORE: Disallineamento nel batch! Attesi ${batchChunks.length} embeddings, ricevuti ${embeddings.length}.`);
+                continue; // Salta questo batch corrotto
             }
             
-            // Popola l'indice con il batch corrente di chunks e embeddings
             populateIndex(batchChunks, embeddings);
-            totalEmbeddings += embeddings.length;
+            totalEmbeddingsGenerated += embeddings.length;
 
         } catch (error) {
-            // L'errore in un batch non blocca i batch successivi
-            console.error(`[PIPELINE-SEED] ERROR during embedding or seeding of batch ${Math.floor(i / BATCH_SIZE) + 1}:`, error.message);
+            // 🔥 LOG CRUCIALE: Errore specifico del batch
+            console.error(`[PIPELINE-SEED] ❌ ERRORE durante la generazione embeddings del batch ${Math.floor(i / BATCH_SIZE) + 1}:`, error.message);
         }
     }
 
-    if (totalEmbeddings > 0) {
-        console.log(`[PIPELINE-SEED] Successfully generated and seeded ${totalEmbeddings} total embeddings.`);
-    } else {
-        console.error('[PIPELINE-SEED] Failed to generate any embeddings. Knowledge base remains empty.');
-    }
+    console.log(`[PIPELINE-SEED] ✅ Generati e processati con successo ${totalEmbeddingsGenerated} embeddings.`);
 }
 
-
-/**
- * Main orchestration function.
- */
 async function main() {
     console.log('--- [DATA PIPELINE START] ---');
     
-    // CORREZIONE APPLICATA: path.resolve() usa il percorso assoluto da __dirname, 
-    // risolvendo il problema del path malformato.
     const sourcesPath = path.resolve(__dirname, '..', 'sources.json');
-    
     if (!fs.existsSync(sourcesPath)) {
-        console.error(`[PIPELINE-ERROR] Sources file not found at: ${sourcesPath}`);
-        return;
+        throw new Error(`File sources.json non trovato a: ${sourcesPath}`);
     }
-    const sourcesFile = fs.readFileSync(sourcesPath, 'utf-8');
-    const { search_queries: SEARCH_QUERIES } = JSON.parse(sourcesFile);
-    console.log(`[PIPELINE-MAIN] Loaded ${SEARCH_QUERIES.length} search queries from sources.json.`);
+    const { search_queries: SEARCH_QUERIES } = JSON.parse(fs.readFileSync(sourcesPath, 'utf-8'));
+    console.log(`[PIPELINE-MAIN] Caricate ${SEARCH_QUERIES.length} query di ricerca.`);
 
     let allChunks = [];
-
     for (const query of SEARCH_QUERIES) {
         const searchResults = await fetchSearchResults(query);
-        if (searchResults.length > 0) {
-            const processedChunks = processSnippets(searchResults);
-            allChunks = allChunks.concat(processedChunks);
-        }
+        allChunks.push(...searchResults);
     }
 
-    // Rimuovi eventuali duplicati basati sul contenuto
     const uniqueChunks = Array.from(new Map(allChunks.map(item => [item.content, item])).values());
-    console.log(`[PIPELINE-MAIN] Total unique chunks to be seeded: ${uniqueChunks.length}`);
+    // 🔥 LOG CRUCIALE: Statistiche finali prima del seeding
+    console.log(`[PIPELINE-MAIN] Totale snippet unici raccolti: ${uniqueChunks.length}`);
 
     await seedChunks(uniqueChunks);
     saveKnowledgeBaseToFile();
@@ -171,16 +120,7 @@ async function main() {
     console.log('--- [DATA PIPELINE END] ---');
 }
 
-
-// Punto di ingresso ESM per l'esecuzione diretta
-// La logica qui è stata mantenuta identica, usando __filename che ora è definito
-if (process.argv[1] && process.argv[1].endsWith('data-pipeline.js')) {
-    console.log('[DEBUG] Script execution reached the final part. Attempting to run main().');
-    main().catch(err => {
-        console.error('[PIPELINE-FATAL] An unexpected error occurred:', err);
-        process.exit(1);
-    });
-}
-
-
-export { main as runDataPipeline };
+main().catch(err => {
+    console.error('[PIPELINE-FATAL] ❌ Pipeline fallita con un errore critico:', err.message);
+    process.exit(1); // Esci con un codice di errore per far fallire il workflow
+});
