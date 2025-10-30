@@ -46,39 +46,35 @@ export async function analyzeWithBestModel({ weatherData, location, forceModel =
         // NUOVO LOGGING DETTAGLIATO
         log(`[MCP Multi-Model] 🎯 Routing Decisione: ${selectedModel.toUpperCase()} | Motivo: ${routingReason}`);
 
-        // --- RAG - Logica di Ricerca Multi-Vettore ---
-        // Pulisce la location da dettagli come "(zona Napoli)"
+        // --- RAG - Logica di Ricerca per Keyword Disgiunte ---
         const cleanLocation = location.split('(')[0].trim();
-        // Estrae solo la prima parola dello stato del mare e la rende minuscola
         const seaState = (weatherData.mare || 'calmo').split(' ')[0].toLowerCase();
 
-        // 1. Crea una query primaria, molto specifica.
-        const primaryQuery = `tecniche pesca ${cleanLocation} con mare ${seaState}`;
-
-        // 2. Crea query secondarie, più generiche, per ampliare la ricerca.
-        const secondaryQueries = [
-            `consigli pesca con mare ${seaState}`,
-            `migliori spot ${cleanLocation}`
+        // 1. Definisci le parole chiave più importanti
+        const keywords = [
+            cleanLocation,           // Es: "Posillipo"
+            `mare ${seaState}`,      // Es: "mare poco"
+            "tecniche di pesca"      // Concetto generico
         ];
 
-        // 3. Esegui tutte le query in parallelo.
-        const [primaryDocs, secondaryDocs] = await Promise.all([
-            queryKnowledgeBase(primaryQuery, 3), // Cerca 3 documenti per la query principale
-            // Combina le query secondarie in una singola stringa per la ricerca generica
-            queryKnowledgeBase(secondaryQueries.join(' '), 2) 
-        ]);
-
-        // 4. Unisci e deduplica i risultati.
+        // 2. Esegui una ricerca separata per OGNI keyword
+        log(`[RAG Inspect] Eseguo ricerche separate per keywords: ${keywords.join(', ')}`);
+        const searchPromises = keywords.map(kw => queryKnowledgeBase(kw, 2)); // Cerca i top 2 per ogni keyword
+        const searchResults = await Promise.all(searchPromises);
+        
+        // 3. Unisci e deduplica i risultati
         const allDocsMap = new Map();
-        [...primaryDocs, ...secondaryDocs].forEach(doc => {
-            // Usiamo il contenuto del testo come chiave per evitare duplicati
+        searchResults.flat().forEach(doc => {
             if (doc && doc.text) {
+                // Usiamo il contenuto del testo come chiave per evitare duplicati
                 allDocsMap.set(doc.text, doc);
             }
         });
         const relevantDocs = Array.from(allDocsMap.values());
+        log(`[RAG Inspect] Ricerche completate. Trovati ${relevantDocs.length} documenti unici.`);
+        // --- FINE MODIFICA ---
         
-        log(`[MCP Multi-Model] ✅ Trovati ${relevantDocs.length} documenti KB per query "${primaryQuery}" e altre`);
+        log(`[MCP Multi-Model] ✅ Trovati ${relevantDocs.length} documenti KB per le parole chiave`);
 
         // Costruisci il prompt arricchito (MAPPATO relevantDocs in .text)
         const enrichedPrompt = buildPrompt(weatherData, location, relevantDocs.map(d => d.text), complexity);
