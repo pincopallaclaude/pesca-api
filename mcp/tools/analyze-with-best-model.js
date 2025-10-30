@@ -46,7 +46,7 @@ export async function analyzeWithBestModel({ weatherData, location, forceModel =
         // NUOVO LOGGING DETTAGLIATO
         log(`[MCP Multi-Model] 🎯 Routing Decisione: ${selectedModel.toUpperCase()} | Motivo: ${routingReason}`);
 
-        // --- RAG - Logica di Ricerca per Keyword Disgiunte ---
+        // --- RAG - Logica di Ricerca per Keyword Disgiunte (Parallelizzata) ---
         const cleanLocation = location.split('(')[0].trim();
         const seaState = (weatherData.mare || 'calmo').split(' ')[0].toLowerCase();
 
@@ -57,8 +57,8 @@ export async function analyzeWithBestModel({ weatherData, location, forceModel =
             "tecniche di pesca"      // Concetto generico
         ];
 
-        // 2. Esegui una ricerca separata per OGNI keyword
-        log(`[RAG Inspect] Eseguo ricerche separate per keywords: ${keywords.join(', ')}`);
+        // 2. Esegui una ricerca in parallelo per OGNI keyword
+        log(`[RAG Inspect] Eseguo ricerche in parallelo per keywords: ${keywords.join(', ')}`);
         const searchPromises = keywords.map(kw => queryKnowledgeBase(kw, 2)); // Cerca i top 2 per ogni keyword
         const searchResults = await Promise.all(searchPromises);
         
