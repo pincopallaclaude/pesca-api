@@ -18,63 +18,33 @@ export async function analyzeWithBestModel({ weatherData, location, forceModel =
         log(`[MCP Multi-Model] 🤖 Routing per ${location}...`);
 
         const complexity = assessWeatherComplexity(weatherData);
-        // NUOVO LOGGING DETTAGLIATO
-        log(`[MCP Multi-Model] 📊 Complessità calcolata: ${complexity.level} (Score: ${complexity.score})`);
+        log(`[MCP Multi-Model] 📊 Complessità: ${complexity.level} (score: ${complexity.score})`);
 
         let selectedModel;
-        let routingReason;
-
         if (forceModel) {
             selectedModel = forceModel;
-            routingReason = `Modello forzato via API`;
+            log(`[MCP Multi-Model] 🔧 Modello forzato: ${selectedModel}`);
         } else {
-            // NUOVA LOGICA DI ROUTING A 3 LIVELLI
+            // Logica di routing a 3 livelli: Premium (Claude) -> Free Upgrade (Mistral) -> Free Baseline (Gemini)
             const claudeAvailable = await isClaudeAvailable();
             const mistralAvailable = await isMistralAvailable();
 
             if (complexity.level === 'high' && claudeAvailable) {
-                selectedModel = 'claude';
-                routingReason = `Complessità alta e Claude disponibile`;
-            } else if ((complexity.level === 'high' || complexity.level === 'medium') && mistralAvailable) {
-                selectedModel = 'mistral';
-                routingReason = `Complessità ${complexity.level} e Mistral disponibile come free upgrade`;
+                selectedModel = 'claude'; // Priorità 1: Modello a pagamento per massima qualità
+            } else if (complexity.level === 'high' && mistralAvailable) {
+                selectedModel = 'mistral'; // Priorità 2: Alternativa gratuita/economica per compiti complessi
             } else {
-                selectedModel = 'gemini';
-                routingReason = `Complessità bassa o fallback predefinito`;
+                selectedModel = 'gemini'; // Default per condizioni standard o come fallback
             }
+            log(`[MCP Multi-Model] 🎯 Routing automatico: ${selectedModel} (Claude: ${claudeAvailable}, Mistral: ${mistralAvailable})`);
         }
-        // NUOVO LOGGING DETTAGLIATO
-        log(`[MCP Multi-Model] 🎯 Routing Decisione: ${selectedModel.toUpperCase()} | Motivo: ${routingReason}`);
 
-        // --- RAG - Logica di Ricerca per Keyword Disgiunte (Parallelizzata) ---
-        const cleanLocation = location.split('(')[0].trim();
-        const seaState = (weatherData.mare || 'calmo').split(' ')[0].toLowerCase();
-
-        // 1. Definisci le parole chiave più importanti
-        const keywords = [
-            cleanLocation,           // Es: "Posillipo"
-            `mare ${seaState}`,      // Es: "mare poco"
-            "tecniche di pesca"      // Concetto generico
-        ];
-
-        // 2. Esegui una ricerca in parallelo per OGNI keyword
-        log(`[RAG Inspect] Eseguo ricerche in parallelo per keywords: ${keywords.join(', ')}`);
-        const searchPromises = keywords.map(kw => queryKnowledgeBase(kw, 2)); // Cerca i top 2 per ogni keyword
-        const searchResults = await Promise.all(searchPromises);
+        // --- RAG (Retrieval-Augmented Generation) - MODIFICATO PER QUERY PIÙ GENERICA ---
+        const simplifiedSeaState = (weatherData.mare || 'calmo').split(' ')[0]; // Estrae solo "Calmo", "Mosso", etc.
+        const searchQuery = `tecniche di pesca ${location} con mare ${simplifiedSeaState} e vento moderato`;
         
-        // 3. Unisci e deduplica i risultati
-        const allDocsMap = new Map();
-        searchResults.flat().forEach(doc => {
-            if (doc && doc.text) {
-                // Usiamo il contenuto del testo come chiave per evitare duplicati
-                allDocsMap.set(doc.text, doc);
-            }
-        });
-        const relevantDocs = Array.from(allDocsMap.values());
-        log(`[RAG Inspect] Ricerche completate. Trovati ${relevantDocs.length} documenti unici.`);
-        // --- FINE MODIFICA ---
-        
-        log(`[MCP Multi-Model] ✅ Trovati ${relevantDocs.length} documenti KB per le parole chiave`);
+        const relevantDocs = await queryKnowledgeBase(searchQuery, 5);
+        log(`[MCP Multi-Model] ✅ Trovati ${relevantDocs.length} documenti KB`);
 
         // Costruisci il prompt arricchito (MAPPATO relevantDocs in .text)
         const enrichedPrompt = buildPrompt(weatherData, location, relevantDocs.map(d => d.text), complexity);
@@ -87,16 +57,16 @@ export async function analyzeWithBestModel({ weatherData, location, forceModel =
         if (selectedModel === 'claude') {
             analysis = await generateWithClaude(enrichedPrompt, { max_tokens: complexity.level === 'high' ? 3000 : 2000 });
             modelUsed = 'claude-3-sonnet';
-            modelMetadata = { provider: 'anthropic', reason: routingReason }; // Uso routingReason
+            modelMetadata = { provider: 'anthropic', reason: complexity.reason };
         } else if (selectedModel === 'mistral') {
             analysis = await generateWithMistral(enrichedPrompt); // Uso il modello di default interno al servizio
             modelUsed = 'open-mistral-7b';
-            modelMetadata = { provider: 'mistral', reason: routingReason }; // Uso routingReason
+            modelMetadata = { provider: 'mistral', reason: `Alternativa gratuita per complessità ${complexity.level}` };
         } else {
             // Gemini (fallback o per complessità bassa/media)
             analysis = await geminiGenerate(enrichedPrompt);
             modelUsed = 'gemini-2.5-flash';
-            modelMetadata = { provider: 'google', reason: routingReason }; // Uso routingReason
+            modelMetadata = { provider: 'google', reason: complexity.level === 'low' ? 'Condizioni standard' : 'Fallback (Modelli superiori non necessari o non disponibili)' };
         }
 
         const elapsed = Date.now() - startTime;
