@@ -1,5 +1,6 @@
 // server.js
 
+
 console.log('--- [SERVER BOOT] Entry point server.js caricato ---');
 console.log('[SERVER BOOT] 📦 Tentativo di importazione dei moduli...');
 
@@ -146,11 +147,8 @@ try {
     async function startServer() {
         console.log('[SERVER STARTUP] 🚀 Inizializzazione...');
         
-        // Step 1: Carica Vector DB
-        console.log('[SERVER STARTUP] 📖 Caricamento knowledge base...');
-        await loadKnowledgeBaseFromFile();
-        console.log('[SERVER STARTUP] ✅ Knowledge base caricata');
-
+        // RIMOSSO Step 1: Carica Vector DB (spostato in alto nel file)
+        
         // Step 2: Connette client MCP
         console.log('[SERVER STARTUP] 🔌 Connessione MCP client...');
         await mcpClient.connect();
