@@ -1,34 +1,55 @@
 {
-    "_comment": "Regola Aurea: Query brevi e mirate producono conoscenza di alta qualità. Query lunghe e complesse producono conoscenza di bassa qualità, confondendo il motore di ricerca. ",
-    
+    "_comment": "Focus principale su saraghi, spigole e orate (≈75%). Mantieni informazioni su serra, barracuda e calamari (eging) come specie complementari. Query brevi e mirate per alta qualità.",
+
     "search_queries": [
-        "tecniche di pesca spigola zona Napoli",
-        "spinning al serra foce Sebeto Napoli",
-        "pesca orate scogliera Posillipo",
-        "artificiali per barracuda golfo di Napoli",
-        
-        "pesca sarago notturna molo Napoli",
-        "migliori inneschi vivi per sarago da scogliera",
-        "migliori inneschi artificiali per sarago",
+
+        "pesca alla spigola da molo e scogliera Napoli",
+        "spinning alla spigola con mare mosso golfo di Napoli",
+        "pesca al sarago da scogliera Posillipo",
+        "pesca al sarago notturna molo Napoli",
+        "pesca all’orata a fondo zona Posillipo",
+        "inneschi vivi per sarago da scogliera",
+        "innesco del granchio per sarago",
+        "esche naturali per orata e sarago in estate",
+        "migliori artificiali per spigola in acque torbide",
         "pasturazione per saraghi e orate con mare calmo",
-        "pesca al sarago con mare mosso consigli",
+        "pesca alla spigola dopo mareggiata Napoli",
+        "pesca notturna a saraghi e spigole con mare calmo",
+        "montature per pesca all’orata su fondale misto",
+        "lenze e terminali per spigola e sarago",
+        "attrezzatura ideale per spigola da riva e molo",
+        "canna e mulinello per pesca al sarago da scogliera",
+        "piombi e ami per orate e saraghi in corrente",
+        "condizioni meteo marine ideali per pesca alla spigola",
+        "migliori spot per orate, saraghi e spigole golfo di Napoli",
+        "quando pescare saraghi e orate nel golfo di Napoli",
+        "tecniche di pesca alla spigola con mare calmo",
+        "bolognese per saraghi e orate in porto",
+        "pesca all’inglese per orate e saraghi",
+        "pesca alla spigola nei porti del golfo di Napoli",
+        "pastura efficace per spigola in porto",
+        "pesca alla spigola a spinning in inverno",
+        "pesca all’orata con granchio vivo o americano",
 
-        "come pescare la spigola a spinning da moli e scogliere",
+        "spinning al serra foce Sebeto Napoli",
         "migliori esche per serra in foce",
-        "inneschi per orata su fondale misto roccioso",
-        "recupero artificiali per barracuda sottocosta",
-        
-        "condizioni meteo marine per pesca a fondo zona Napoli",
-        "spot migliori per orate, spigole e saraghi golfo di Napoli",
-
-        "tecniche di pesca spigola molo Posillipo",
+        "pesca al serra con artificiali superficie e popper",
         "migliori esche per serra in autunno",
-        "pesca a eging per calamari da molo",
-        "come pescare a eging calamari tecniche",
-        "eging squid jig tecnica recupero",
+        "recupero artificiale per serra in mare mosso",
+        "pesca notturna al serra con mare calmo Napoli",
+
+        "recupero artificiali per barracuda sottocosta",
+        "migliori artificiali per barracuda golfo di Napoli",
+        "pesca al barracuda da molo e scogliera Napoli",
+        "condizioni ideali per pesca al barracuda notturna",
+        "spinning al barracuda in porto o scogliera",
+
+        "pesca a eging per calamari da molo Napoli",
+        "tecniche di eging per calamari in autunno",
+        "eging squid jig tecnica di recupero",
         "eging attrezzatura canna mulinello egi",
-        "totanare eging differenze tecniche pesca calamari",
-        "quando pescare calamari eging condizioni meteo",
-        "colori egi calamari acqua torbida chiara"        
+        "colori egi calamari acqua torbida o chiara",
+        "totanare vs eging differenze tecniche pesca calamari",
+        "quando pescare calamari eging condizioni meteo"
     ]
 }
