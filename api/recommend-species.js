@@ -3,40 +3,44 @@
 import { mcpClient } from '../lib/services/mcp-client.service.js';
 import { myCache } from '../lib/utils/cache.manager.js';
 
-/**
- * POST /api/recommend-species
- * Endpoint per raccomandazioni specie-specifiche
- * 
- * Body:
- * {
- *   "species": "spigola",
- *   "location": "40.813,14.209"
- * }
- */
 export default async function recommendSpecies(req, res) {
-  const { species, location } = req.body;
+  // 🔥 MODIFICA: Accetta anche lat/lon opzionali
+  const { species, location, lat, lon } = req.body;
   
-  // Validazione input
   if (!species || !location) {
     return res.status(400).json({
-      error: 'Campi obbligatori: species, location',
+      error: 'Campi obbligatori: species, location. Campi opzionali: lat, lon',
       example: {
         species: "spigola",
-        location: "40.813,14.209"
+        location: "Posillipo",
+        lat: 40.813,
+        lon: 14.208
       },
       availableSpecies: ['spigola', 'orata', 'serra', 'calamaro']
     });
   }
   
   try {
-    console.log(`[API /recommend-species] Richiesta ${species} @ ${location}`);
+    // ==========================================================
+    // 🔥 NUOVA LOGICA: Costruzione coerente della cacheKey 🔥
+    // ==========================================================
+    let cacheLocationKey;
+    if (lat && lon) {
+        // Se lat/lon sono forniti (come fa l'app), usa quelli con la stessa precisione
+        cacheLocationKey = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
+        console.log(`[API /recommend-species] Richiesta ${species} @ ${location} (usando coordinate ${cacheLocationKey})`);
+    } else {
+        // Altrimenti, usa il nome (per test semplici)
+        cacheLocationKey = location;
+        console.log(`[API /recommend-species] Richiesta ${species} @ ${location}`);
+    }
+    const cacheKey = `forecast-data-v-refactored-${cacheLocationKey}`;
+    // ==========================================================
     
-    // Recupera dati meteo dalla cache
-    const cacheKey = `forecast-data-v-refactored-${location}`;
     const weatherData = myCache.get(cacheKey);
     
     if (!weatherData) {
-      console.log(`[API /recommend-species] ⚠️ Dati meteo non in cache`);
+      console.log(`[API /recommend-species] ⚠️ Dati meteo non in cache per la chiave: ${cacheKey}`);
       return res.status(404).json({
         error: 'Dati meteo non disponibili per questa località',
         action: 'fetch_forecast_first',
@@ -47,19 +51,17 @@ export default async function recommendSpecies(req, res) {
     
     console.log(`[API /recommend-species] ✅ Dati meteo trovati, chiamata MCP...`);
     
-    // Chiama MCP tool per raccomandazioni specie-specifiche
     const result = await mcpClient.callTool('recommend_for_species', {
       species: species.toLowerCase().trim(),
-      weatherData: weatherData,
-      location: weatherData.location?.name || location,
+      weatherData: weatherData.forecast, // 🔥 MODIFICA: Passa l'oggetto forecast interno
+      location: weatherData.forecast[0].location?.name || location,
     });
     
     console.log(`[API /recommend-species] ✅ Raccomandazioni generate`);
     
-    // Ritorna raccomandazioni al client
     return res.status(200).json({
       species: species,
-      location: weatherData.location?.name || location,
+      location: weatherData.forecast[0].location?.name || location,
       recommendations: result.content[0].text,
       metadata: {
         compatibilityScore: result.metadata?.compatibilityScore,
