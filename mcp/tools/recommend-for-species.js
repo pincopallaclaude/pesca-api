@@ -31,8 +31,10 @@ export async function recommendForSpecies({ species, weatherData, location }) {
         // Sostituito process.stdout.write con log
         log(`[MCP Species] 📊 Compatibilità: ${compatibility.score}/100`);
         
-        const kbQuery = `pesca ${species} tecniche esche ${location}`;
-        const relevantDocs = await queryKnowledgeBase(kbQuery, 3);
+        const kbQuery = `pesca ${speciesKey} tecniche esche ${location}`;
+        const relevantDocs = await queryKnowledgeBase(kbQuery, 3, {
+            species: speciesKey // 🔥 FILTRA PER SPECIE!
+        });
         // Sostituito process.stdout.write con log
         log(`[MCP Species] 📚 Trovati ${relevantDocs.length} documenti KB`);
 
@@ -148,7 +150,9 @@ Stile: Pratico, diretto. Usa Markdown.
 
 async function generateGenericSpeciesRecommendation(species, weatherData, location) {
     const kbQuery = `pesca ${species} tecniche esche`;
-    const relevantDocs = await queryKnowledgeBase(kbQuery, 3);
+    const relevantDocs = await queryKnowledgeBase(kbQuery, 3, {
+        species: species // 🔥 FILTRA PER SPECIE ANCHE NEL FALLBACK!
+    });
     const prompt = `
 # Raccomandazioni Pesca: ${species}
 Genera raccomandazioni per la pesca di ${species} a ${location} con queste condizioni:
