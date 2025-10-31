@@ -37,6 +37,7 @@
     "express": "^5.1.0",
     "google-search-results-nodejs": "^2.1.0",
     "hnswlib-node": "^3.0.0",
+    "natural": "^8.1.0",
     "node-cache": "^5.1.2",
     "puppeteer": "^24.24.0",
     "puppeteer-extra": "^3.3.6",
