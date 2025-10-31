@@ -13,9 +13,6 @@ const __dirname = path.dirname(__filename);
 const search = new GoogleSearch(process.env.SERPAPI_API_KEY);
 const BATCH_SIZE = 100;
 
-// ==========================================================
-// 🔥 NUOVA FUNZIONE: Estrazione Metadati 🔥
-// ==========================================================
 const METADATA_KEYWORDS = {
     species: ['spigola', 'branzino', 'orata', 'sarago', 'serra', 'barracuda', 'calamaro', 'seppia', 'totano'],
     technique: ['spinning', 'surfcasting', 'bolognese', 'inglese', 'eging', 'fondo', 'light rock fishing', 'lrf'],
@@ -24,45 +21,27 @@ const METADATA_KEYWORDS = {
     bait_type: ['vivo', 'naturale', 'granchio', 'bibi', 'americano']
 };
 
-/**
- * Estrae metadati da un testo basandosi su un dizionario di keyword.
- * @param {string} text - Il testo dello snippet.
- * @returns {object} Un oggetto contenente i metadati estratti.
- */
 function extractMetadata(text) {
     const metadata = {};
     const textLower = text.toLowerCase();
-
     for (const [category, keywords] of Object.entries(METADATA_KEYWORDS)) {
         const foundKeywords = keywords.filter(keyword => textLower.includes(keyword));
         if (foundKeywords.length > 0) {
-            // Usa un Set per garantire l'unicità
             metadata[category] = [...new Set(foundKeywords)];
         }
     }
     return metadata;
 }
-// ==========================================================
-
 
 async function fetchSearchResults(query) {
     console.log(`[PIPELINE-SEARCH] Eseguo ricerca per: "${query}"`);
     try {
-        const params = {
-            engine: "google",
-            q: query,
-            location: "Italy",
-            gl: "it",
-            hl: "it",
-        };
-
-        const data = await new Promise((resolve) => {
-            search.json(params, resolve);
-        });
+        const params = { engine: "google", q: query, location: "Italy", gl: "it", hl: "it" };
+        const data = await new Promise((resolve) => { search.json(params, resolve); });
         
         const searchesRemaining = data.search_information?.total_searches_left;
         if (searchesRemaining !== undefined) {
-            console.log(`[PIPELINE-MONITOR] 📈 Ricerche SerpApi residue questo mese: ${searchesRemaining}`);
+            console.log(`[PIPELINE-MONITOR] 📈 Ricerche SerpApi residue: ${searchesRemaining}`);
         }
 
         const organicResults = data["organic_results"];
@@ -71,28 +50,44 @@ async function fetchSearchResults(query) {
             return [];
         }
 
+        // ==========================================================
+        // 🔥 NUOVA LOGICA: CONTEXT WINDOW OPTIMIZATION 🔥
+        // ==========================================================
         const documents = organicResults
-            .filter(res => res.snippet)
+            .filter(res => res.snippet && res.title) // Assicurati che ci siano sia snippet che titolo
             .slice(0, 5)
             .map(res => {
-                const content = res.snippet.replace(/\[\.\.\.\]/g, '').trim();
-                // 🔥 MODIFICA: Aggiungi i metadati a ogni documento
-                const metadata = extractMetadata(content);
-                return { content, source: res.link, metadata };
+                const snippet = res.snippet.replace(/\[\.\.\.\]/g, '').trim();
+                
+                // 1. Il contenuto da vettorizzare è lo snippet, perché è conciso.
+                const content_for_embedding = snippet;
+
+                // 2. Il "parent_content" è una combinazione più ricca di titolo e snippet.
+                const parent_content = `${res.title}. ${snippet}`;
+
+                // 3. Estrai i metadati dal contesto più ampio.
+                const metadata = extractMetadata(parent_content);
+                
+                return { 
+                    content: content_for_embedding,
+                    parent_content: parent_content, // 🔥 SALVA IL CONTESTO ARRICCHITO
+                    source: res.link, 
+                    metadata 
+                };
             });
         
-        console.log(`[PIPELINE-SEARCH] Trovati e processati ${documents.length} snippet pertinenti.`);
+        console.log(`[PIPELINE-SEARCH] Trovati e processati ${documents.length} documenti arricchiti.`);
         return documents;
 
     } catch (error) {
-        console.error(`[PIPELINE-SEARCH] ❌ ERRORE durante la ricerca per "${query}":`, error.message || error);
+        console.error(`[PIPELINE-SEARCH] ❌ ERRORE durante la ricerca:`, error.message || error);
         throw error;
     }
 }
 
 async function seedChunks(chunks) {
     if (chunks.length === 0) {
-        console.warn('[PIPELINE-SEED] Nessun chunk da processare. La KB non verrà aggiornata.');
+        console.warn('[PIPELINE-SEED] Nessun chunk da processare.');
         return;
     }
 
@@ -101,14 +96,15 @@ async function seedChunks(chunks) {
     for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
         const batchChunks = chunks.slice(i, i + BATCH_SIZE);
         try {
-            console.log(`[PIPELINE-SEED] Genero embeddings per il batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(chunks.length / BATCH_SIZE)}...`);
+            console.log(`[PIPELINE-SEED] Genero embeddings per il batch ${Math.floor(i / BATCH_SIZE) + 1}...`);
             
+            // L'embedding viene generato solo sul 'content' (lo snippet)
             const contents = batchChunks.map(chunk => ({ content: { parts: [{ text: chunk.content }] } }));
             const result = await embeddingModel.batchEmbedContents({ requests: contents });
             const embeddings = result.embeddings.map(e => e.values);
             
             if (embeddings.length !== batchChunks.length) {
-                console.error(`[PIPELINE-SEED] ❌ ERRORE: Disallineamento nel batch! Attesi ${batchChunks.length} embeddings, ricevuti ${embeddings.length}.`);
+                console.error(`[PIPELINE-SEED] ❌ ERRORE: Disallineamento nel batch!`);
                 continue;
             }
             
@@ -116,22 +112,21 @@ async function seedChunks(chunks) {
             totalEmbeddingsGenerated += embeddings.length;
 
         } catch (error) {
-            console.error(`[PIPELINE-SEED] ❌ ERRORE durante la generazione embeddings del batch ${Math.floor(i / BATCH_SIZE) + 1}:`, error.message);
+            console.error(`[PIPELINE-SEED] ❌ ERRORE durante la generazione embeddings:`, error.message);
         }
     }
 
-    console.log(`[PIPELINE-SEED] ✅ Generati e processati con successo ${totalEmbeddingsGenerated} embeddings.`);
+    console.log(`[PIPELINE-SEED] ✅ Generati ${totalEmbeddingsGenerated} embeddings.`);
 }
 
 async function main() {
     console.log('--- [DATA PIPELINE START] ---');
     
     const sourcesPath = path.resolve(__dirname, '..', 'sources.json');
-    if (!fs.existsSync(sourcesPath)) {
-        throw new Error(`File sources.json non trovato a: ${sourcesPath}`);
-    }
+    if (!fs.existsSync(sourcesPath)) throw new Error(`File sources.json non trovato: ${sourcesPath}`);
+    
     const { search_queries: SEARCH_QUERIES } = JSON.parse(fs.readFileSync(sourcesPath, 'utf-8'));
-    console.log(`[PIPELINE-MAIN] Caricate ${SEARCH_QUERIES.length} query di ricerca.`);
+    console.log(`[PIPELINE-MAIN] Caricate ${SEARCH_QUERIES.length} query.`);
 
     let allChunks = [];
     for (const query of SEARCH_QUERIES) {
@@ -142,9 +137,9 @@ async function main() {
     const uniqueChunks = Array.from(new Map(allChunks.map(item => [item.content, item])).values());
     console.log(`[PIPELINE-MAIN] Totale snippet unici raccolti: ${uniqueChunks.length}`);
 
-    // 🔥 LOG CRUCIALE: Mostra un'anteprima dei metadati estratti per il primo chunk
     if (uniqueChunks.length > 0 && uniqueChunks[0].metadata) {
-        console.log(`[PIPELINE-METADATA] 🏷️ Esempio metadati estratti:`, uniqueChunks[0].metadata);
+        console.log(`[PIPELINE-METADATA] 🏷️ Esempio metadati:`, uniqueChunks[0].metadata);
+        console.log(`[PIPELINE-CONTEXT] 📖 Esempio parent_content: "${uniqueChunks[0].parent_content.substring(0, 100)}..."`);
     }
 
     await seedChunks(uniqueChunks);
@@ -154,6 +149,6 @@ async function main() {
 }
 
 main().catch(err => {
-    console.error('[PIPELINE-FATAL] ❌ Pipeline fallita con un errore critico:', err.message);
+    console.error('[PIPELINE-FATAL] ❌ Pipeline fallita:', err.message);
     process.exit(1);
 });

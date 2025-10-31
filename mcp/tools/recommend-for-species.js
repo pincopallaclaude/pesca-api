@@ -38,7 +38,11 @@ export async function recommendForSpecies({ species, weatherData, location }) {
         // Sostituito process.stdout.write con log
         log(`[MCP Species] 📚 Trovati ${relevantDocs.length} documenti KB`);
 
-        const prompt = buildSpeciesPrompt(species, speciesRules, weatherData, location, compatibility, relevantDocs.map(d=>d.text));
+        // Se il documento ha parent_content, usalo. Altrimenti, fallback sul testo semplice.
+        const docsForPrompt = relevantDocs.map(d => d.parent_content || d.text);
+        log(`[MCP Species] 📖 Utilizzati ${docsForPrompt.length} contesti arricchiti per il prompt.`);
+
+        const prompt = buildSpeciesPrompt(species, speciesRules, weatherData, location, compatibility, docsForPrompt);
         const recommendations = await geminiGenerate(prompt);
         
         const elapsed = Date.now() - startTime;
@@ -158,7 +162,7 @@ async function generateGenericSpeciesRecommendation(species, weatherData, locati
 Genera raccomandazioni per la pesca di ${species} a ${location} con queste condizioni:
 ${JSON.stringify({vento: weatherData.ventoDati, mare: weatherData.mare, luna: weatherData.moonPhase}, null, 2)}
 Conoscenza disponibile:
-${relevantDocs.map(d => d.text).join('\n\n')}
+${relevantDocs.map(d => d.parent_content || d.text).join('\n\n')}
 Includi: tecniche, esche, orari, spot. Stile pratico e specifico.`;
     const recommendations = await geminiGenerate(prompt);
     return { content: [{ type: 'text', text: recommendations }], metadata: { species, fallback: true, message: 'Specie non in database regole, generazione AI generica' }};

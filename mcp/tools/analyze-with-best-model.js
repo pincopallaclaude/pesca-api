@@ -46,8 +46,12 @@ export async function analyzeWithBestModel({ weatherData, location, forceModel =
         const relevantDocs = await queryKnowledgeBase(searchQuery, 5);
         log(`[MCP Multi-Model] ✅ Trovati ${relevantDocs.length} documenti KB`);
 
-        // Costruisci il prompt arricchito (MAPPATO relevantDocs in .text)
-        const enrichedPrompt = buildPrompt(weatherData, location, relevantDocs.map(d => d.text), complexity);
+        // Se il documento ha parent_content, usalo. Altrimenti, fallback sul testo semplice.
+        const docsForPrompt = relevantDocs.map(d => d.parent_content || d.text);
+        log(`[MCP Multi-Model] 📖 Utilizzati ${docsForPrompt.length} contesti arricchiti per il prompt.`);
+        
+        // Costruisci il prompt arricchito
+        const enrichedPrompt = buildPrompt(weatherData, location, docsForPrompt, complexity);
 
         let analysis;
         let modelUsed;
