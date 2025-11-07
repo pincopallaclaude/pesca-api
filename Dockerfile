@@ -4,12 +4,7 @@ FROM node:20-slim
 # Imposta la directory di lavoro.
 WORKDIR /app
 
-# --- MODIFICA CHIAVE ---
-# Aggiungi il pacchetto mancante 'opentelemetry-instrumentation-fastapi'
-RUN apt-get update && apt-get install -y python3 python3-pip curl wget && \
-    pip3 install chromadb uvicorn fastapi[all] pydantic-settings opentelemetry-instrumentation-fastapi --break-system-packages && \
-    rm -rf /var/lib/apt/lists/*
-# --- FINE MODIFICA ---
+# Non installiamo più Python o ChromaDB qui.
 
 # Copia i file di dipendenza di Node.js.
 COPY package*.json ./
@@ -20,8 +15,8 @@ RUN npm ci --only=production
 # Copia tutto il resto del codice dell'applicazione.
 COPY . .
 
-# Esponi esplicitamente la porta 10000 che Render si aspetta per i Web Services.
+# Esponi la porta che Render si aspetta.
 EXPOSE 10000
 
-# Comando di avvio che orchestra i due processi.
-CMD ["/bin/sh", "-c", "uvicorn chromadb.app:app --host 127.0.0.1 --port 8001 & sleep 15 && exec node server.js"]
+# Comando di avvio: solo il server Node.js.
+CMD ["node", "server.js"]
