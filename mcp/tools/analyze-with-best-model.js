@@ -4,7 +4,7 @@ import { generateAnalysis as geminiGenerate } from '../../lib/services/gemini.se
 import { generateWithMistral, isMistralAvailable } from '../../lib/services/mistral.service.js';
 import { generateWithClaude, isClaudeAvailable } from '../../lib/services/claude.service.js';
 import { queryKnowledgeBase } from '../../lib/services/vector.service.js';
-import logger from '../../lib/services/logger.js';
+import * as logger from '../../lib/utils/logger.js';
 
 /**
  * MCP Tool: Analyze With Best Model

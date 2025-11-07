@@ -2,7 +2,7 @@
 
 import { queryKnowledgeBase } from '../../lib/services/vector.service.js';
 import { generateAnalysis as geminiGenerate } from '../../lib/services/gemini.service.js';
-import logger from '../../lib/services/logger.js'; // Importato il logger unificato
+import * as logger from '../../lib/utils/logger.js'; // Importato il logger unificato
 
 const SPECIES_RULES = {
     spigola: { name: 'Spigola (Dicentrarchus labrax)', optimalTemp: { min: 12, max: 20 }, optimalWind: { min: 5, max: 20 }, optimalWave: { min: 0.5, max: 1.5 }, techniques: ['spinning', 'surfcasting', 'bolognese'], lures: ['minnow', 'ondulante', 'grub', 'verme coreano'], hotspots: ['foci', 'scogliere', 'moli'], season: ['autunno', 'inverno', 'primavera'] },
