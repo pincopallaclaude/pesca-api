@@ -1,0 +1,18 @@
+# 1. Usa l'immagine "full" di Node.js, che contiene Python.
+FROM node:20
+
+# 2. Installa gli strumenti di compilazione necessari
+# (Questa immagine li ha già, ma lo lasciamo per sicurezza)
+RUN apt-get update && apt-get install -y build-essential
+
+# 3. Procedi con il setup
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+
+# 4. Esponi la porta
+EXPOSE 8080
+
+# 5. Usa il comando di avvio corretto
+CMD [ "node", "server.js" ]

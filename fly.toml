@@ -1,0 +1,35 @@
+# fly.toml app configuration file for pesca-api-v5
+app = 'pesca-api-v5'
+primary_region = 'ams'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[mounts]
+  source = "chroma_data"
+  destination = "/data/chroma"
+
+# Definisce un singolo processo 'app' che esegue entrambi i comandi.
+# 'chroma run' viene avviato in background (&), e 'exec node server.js'
+# viene eseguito in foreground, mantenendo il container attivo.
+[processes]
+  app = "/bin/sh -c 'chroma run --host 0.0.0.0 --port 8001 --path /data/chroma & exec node server.js'"
+
+# Il servizio pubblico espone la porta dell'app Node.js.
+[[services]]
+  protocol = "tcp"
+  internal_port = 8080
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+# Configurazione della macchina virtuale.
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1

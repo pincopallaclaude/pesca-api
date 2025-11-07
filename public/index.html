@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Previsioni Pesca</title>
+    <meta name="theme-color" content="#2a3f5a" />
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/logo192.png">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+        :root{--bg-color:#0D2A4B;--card-bg-color:#1E436E;--text-color:#FFFFFF;--accent-color:#66CCCC;--border-color:#4682B4;--header-bg-color:#2a3f5a;--text-shadow:1px 1px 2px rgba(0,0,0,0.2)}
+        body{background-color:var(--bg-color);color:var(--text-color);font-family:'Roboto',sans-serif;margin:0; overflow-x: hidden;}
+        #loading{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;justify-content:center;align-items:center;flex-direction:column;background:var(--bg-color);z-index:3000}
+        .spinner{border:4px solid rgba(255,255,255,.3);border-radius:50%;border-top:4px solid var(--accent-color);width:50px;height:50px;animation:spin 1s linear infinite}
+        @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+        @keyframes fadeInFish{0%{opacity:0;transform:scale(0.8)}100%{opacity:1;transform:scale(1)}}
+        #loading.hidden{opacity:0;pointer-events:none}
+        #content-wrapper{position:relative;z-index:1;background-color:var(--bg-color);padding-top: 100px; transition:transform 0.3s ease, opacity 0.3s ease;}
+        #main-header{position:fixed;top:0;left:0;width:100%;background-color:var(--header-bg-color);z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,0.2);}
+        .top-bar{display:flex;align-items:center;justify-content:space-between;min-height: 60px; padding:8px 16px; transition: all 0.3s ease-in-out;}
+        .header-left, .header-right { flex: 1; display: flex; transition: opacity 0.3s ease, flex-basis 0.3s ease; }
+        .header-left { justify-content: flex-start; }
+        .header-right { justify-content: flex-end; }
+        .header-center { flex: 2; text-align: center; min-width: 0; transition: all 0.3s ease-in-out; }
+        .header-center h1{font-size:1.8em;margin:0;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        #main-header.header-condensed .header-left,#main-header.header-condensed .header-right{opacity:0;pointer-events:none;flex-basis:0}
+        #main-header.header-condensed .header-center{flex-grow:0;transition:none;position:absolute;left:50%;transform:translateX(-50%);width:calc(100% - 100px);z-index:2}
+        .sub-header-bar { display: flex; justify-content: space-between; align-items: center; padding: 4px 16px 8px; font-size: 0.9em; opacity: 0.9; }
+        .header-icons{display:flex;align-items:center;gap:16px}
+        .icon-btn{background:none;border:none;color:inherit;padding:8px;cursor:pointer} .icon-btn svg{width:24px;height:24px;display:block}
+        .options-menu-container{position:relative}#options-menu{display:none;position:absolute;top:120%;right:0;background-color:var(--card-bg-color);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.4);z-index:1001;width:160px;padding:8px 0;border:1px solid var(--border-color)}#options-menu.visible{display:block}#options-menu ul{list-style-type:none;margin:0;padding:0}#options-menu li a{display:block;padding:12px 20px;color:var(--text-color);text-decoration:none;font-size:1em}#options-menu li a:hover{background-color:var(--bg-color)}
+        #sidenav{position:fixed;top:0;left:0;width:280px;height:100%;background-color:var(--card-bg-color);z-index:2500;transform:translateX(-100%);transition:transform .3s ease;padding:24px;box-sizing:border-box}#sidenav.open{transform:translateX(0)}
+        #sidenav-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.5);z-index:2400;opacity:0;pointer-events:none;transition:opacity .3s ease}#sidenav-overlay.visible{opacity:1;pointer-events:all}
+        #search-view{position:fixed;top:0;left:0;width:100%;height:100%;background-color:var(--bg-color);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .3s ease;z-index:2000}body.search-active #search-view{transform:translateX(0)}body.search-active #content-wrapper{transform:translateX(-20%);opacity:.5;pointer-events:none}
+        #search-header{padding:0 8px 0 16px;background-color:var(--header-bg-color);flex-shrink:0}#search-input-field{flex-grow:1;height:100%;display:flex;align-items:center;margin:0 12px}#search-input{width:100%;background:none;border:none;outline:none;font-size:1.1em;color:var(--text-color)}
+        #search-results-container{flex-grow:1;overflow-y:auto;padding:8px}
+        .results-label{padding:8px;color:var(--accent-color);font-weight:500;text-transform:uppercase;font-size:.8em;letter-spacing:.5px}
+        #autocomplete-results{list-style:none;padding:0;margin:0}
+        #autocomplete-results li{display:flex;align-items:center;gap:16px;padding:12px 8px;cursor:pointer;border-bottom:1px solid rgba(70,130,180,.3)}
+        #autocomplete-results li .result-icon { color: var(--text-color); opacity: 0.8; }
+        #autocomplete-results li:hover{background-color:rgba(255,255,255,.05)}
+        .suggestion-text{display:flex;flex-direction:column} .suggestion-main{font-weight:500} .suggestion-secondary{font-size:.9em;opacity:.7;margin-top:2px}
+        main{padding:16px} .forecast-container{display:flex;flex-direction:column;gap:16px} .error-message{text-align:center;padding:40px;background-color:var(--card-bg-color);border-radius:12px} .forecast-card{background:var(--card-bg-color);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:16px;} .card-top{display:grid;grid-template-columns:120px 1fr 1fr;gap:12px;align-items:start;}
+        .card-col-1{display:flex;flex-direction:column;justify-content:space-between;text-align:center;height:100%}
+        .date-display .giorno-nome{font-weight:700;font-size:1.2em;display:block} .date-display .giorno-data{font-size:0.9em;opacity:0.8;display:block} .pesca-container{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:2px;min-height:22px; cursor: pointer; -webkit-tap-highlight-color: transparent;} .pesca-icon{height:20px;filter:brightness(.9);transition:opacity .3s ease,transform .2s ease;-webkit-user-select:none;user-select:none} .weather-and-moon{position:relative;margin:8px auto} .meteo-icon{font-size:3em} .moon-phase{position:absolute;left:40px;bottom:0;font-size:1.2em;opacity:.9} .data-grid{display:grid;grid-template-rows:repeat(4, auto);gap:12px;font-size:.9em} .info-item{display:flex;flex-direction:column;text-align:left;justify-content:center} .info-label{font-size:.7em;font-weight:300;color:var(--text-color);opacity:0.8;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+        .info-value{font-weight:500;font-size:1em;display:flex;align-items:baseline;gap:4px;text-shadow:var(--text-shadow);white-space:nowrap;overflow:hidden}
+        .info-value .min-max{font-size:0.85em;opacity:.8;font-weight:300;white-space:nowrap}
+        .info-value .sea-acronym{font-size:.85em;font-weight:700;margin-right:2px;white-space:nowrap}
+        .finestre-pesca{display:flex;justify-content:space-around;background-color:rgba(0,0,0,.2);border-radius:12px;padding:16px 12px} .finestra-item{flex:1;text-align:center} .finestra-item:first-child{border-right:1px solid var(--border-color)} .finestra-label{font-size:.7em;text-transform:uppercase;color:var(--accent-color);font-weight:700;letter-spacing:.5px} .finestra-orario{font-size:1.4em;font-weight:700;margin:6px 0 0;text-shadow:var(--text-shadow)} .footer{text-align:center;margin-top:24px;font-size:.7em;opacity:.5;padding-bottom:16px}
+        #score-details-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(5px);z-index:3500;opacity:0;pointer-events:none;transition:opacity 0.3s ease}
+        #score-details-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.9);background:rgba(30,67,110,0.9);border-radius:16px;width:calc(100% - 48px);max-width:320px;z-index:3600;box-shadow:0 8px 32px rgba(0,0,0,0.3);padding:20px;border:1px solid var(--border-color);opacity:0;pointer-events:none;transition:opacity .3s ease,transform .3s cubic-bezier(0.175, 0.885, 0.32, 1.275)}
+        #score-details-overlay.visible,#score-details-modal.visible{opacity:1;pointer-events:auto}
+        #score-details-modal.visible{transform:translate(-50%,-50%) scale(1)}
+        #score-details-modal h3{margin:0 0 16px 0;font-size:1.1em;font-weight:500;color:var(--text-color);text-align:center;opacity:0.9}
+        #score-details-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+        #score-details-list li{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:12px;font-size:.95em;opacity:0;animation:fadeInListItem 0.4s ease-out forwards}
+        @keyframes fadeInListItem{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        .reason-icon{width:24px;height:24px;opacity:0.7} .reason-icon svg {width: 100%; height: 100%;}
+        .reason-text{font-weight:400;opacity:0.9}
+        .reason-points{font-weight:700;font-size:0.9em}
+        .positive-points{color:#66CCCC}
+        .negative-points{color:#FF6B6B}
+        .neutral-points{color:var(--text-color);opacity:0.6}
+        #close-modal-btn{position:absolute;top:8px;right:8px;background:none;border:none;color:var(--text-color);opacity:.7;cursor:pointer;padding:8px}
+    </style>
+</head>
+<body>
+    <div id="loading"><div class="spinner"></div></div>
+    <div id="content-wrapper">
+         <header id="main-header"><div class="top-bar"><div class="header-left"><button id="sidenav-btn" class="icon-btn" aria-label="Menu utente"><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg></button></div><div class="header-center"><h1 id="location-name">Posillipo</h1></div><div class="header-right"><div class="header-icons"><button id="search-btn" class="icon-btn" aria-label="Cerca località"><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path></svg></button><button id="gps-btn" class="icon-btn" aria-label="Posizione attuale"><svg viewBox="0 0 24 24" fill="#EAEAEA" xmlns="http://www.w3.org/2000/svg"><path d="M12 8C9.79 8 8 9.79 8 12s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></button><button id="fav-btn" class="icon-btn" aria-label="Preferiti"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg></button><div class="options-menu-container"><button id="options-btn" class="icon-btn" aria-label="Opzioni"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path></svg></button><div id="options-menu"><ul><li><a href="#">Info</a></li><li><a href="#">Impostazioni</a></li></ul></div></div></div></div></div><div class="sub-header-bar"><span class="sub-header-title">Previsioni Pesca</span><span id="dateRange"></span></div></header>
+        <main><div id="forecast-container" class="forecast-container"></div><footer class="footer">Dati forniti da <span id="fonti"></span></footer></main>
+    </div>
+    <aside id="sidenav"><p>Menu utente (futuro)</p></aside><div id="sidenav-overlay"></div>
+    <div id="search-view"><header id="search-header" class="top-bar"><button id="back-from-search-btn" class="icon-btn" aria-label="Indietro"><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l2.293 2.293a1 1 0 010 1.414z" clip-rule="evenodd"></path></svg></button><div id="search-input-field"><input type="text" id="search-input" placeholder="Cerca una città..." autocomplete="off"></div></header><div id="search-results-container"></div></div>
+    
+    <div id="score-details-overlay"></div>
+    <div id="score-details-modal">
+        <button id="close-modal-btn" aria-label="Chiudi dettagli"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+        <h3>Analisi Punteggio</h3>
+        <ul id="score-details-list"></ul>
+    </div>
+
+    <script>
+        function getMoonIcon(phase){const p=phase.toLowerCase();if(p.includes('full'))return'🌕';if(p.includes('new'))return'🌑';if(p.includes('first quarter'))return'🌓';if(p.includes('last quarter')||p.includes('third quarter'))return'🌗';if(p.includes('waxing crescent'))return'🌒';if(p.includes('waning crescent'))return'🌘';if(p.includes('waxing gibbous'))return'🌔';if(p.includes('waning gibbous'))return'🌖';return'🌔'}
+        function getReasonIcon(iconName) { const icons = { pressure: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a9.5 9.5 0 00-9.5 9.5c0 2.27.81 4.41 2.22 6.09l-.74-.74a1 1 0 00-1.42 1.42l2.48 2.47a1 1 0 001.42 0L8.94 18.2a1 1 0 00-1.42-1.42l-.65.65A7.5 7.5 0 1112 4.5a1 1 0 000-2zM12 11a1 1 0 10-1 1a1 1 0 001-1zm5 4.07V15a1 1 0 00-2 0v.07a3.48 3.48 0 00-1.6-1.6l-1.07-1.07a1 1 0 10-1.42 1.42L12 15a1.49 1.49 0 102.12 2.12L15 18a1 1 0 001.42-1.42l-1.07-1.07a3.48 3.48 0 001.65-1.44z"/></svg>', pressure_up: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12.71 4.29a1 1 0 00-1.42 0l-4 4a1 1 0 001.42 1.42L12 6.41l3.29 3.3a1 1 0 001.42-1.42l-4-4zM12 2a10 10 0 1010 10A10 10 0 0012 2zm0 18a8 8 0 118-8a8 8 0 01-8 8z"/></svg>', pressure_down: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a10 10 0 10-10-10a10 10 0 0010 10zm0-18a8 8 0 11-8 8a8 8 0 018-8zm-.71 12.29a1 1 0 001.42 0l4-4a1 1 0 00-1.42-1.42L12 11.59l-3.29-3.3a1 1 0 00-1.42 1.42l4 4z"/></svg>', wind: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M5.5 13.5a1.5 1.5 0 113 0a1.5 1.5 0 01-3 0zm4.5 2.5a1 1 0 102 0a1 1 0 00-2 0zM12 6.5A1.5 1.5 0 1110.5 8a1.5 1.5 0 011.5-1.5zM22 11a1 1 0 00-1 1a5 5 0 01-5 5H4.07a2.5 2.5 0 110-1H16a4 4 0 000-8H6.07a4.5 4.5 0 100 1H16a5 5 0 014.58 4H22zm-4.5-3.5A2.5 2.5 0 1115 5a2.5 2.5 0 012.5 2.5z"/></svg>', moon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zM12.3 20a8 8 0 010-16a.7.7 0 01.7.7a6.6 6.6 0 000 14.6.7.7 0 01-.7.7z"/></svg>', clouds: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M18.8 8.1C18.4 5.2 16 3 13 3a7.3 7.3 0 00-7 5c-3.1.2-5.4 2.8-5.4 5.8a6.3 6.3 0 006.4 6.2H17c3.3 0 6-2.5 6-5.8a5.5 5.5 0 00-4.2-5.1z"/></svg>', waves: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M2.5 11.5c0-.6.5-1 1-1h1.5a1.5 1.5 0 000 3h-1a1 1 0 01-1-1h-1a1 1 0 01-.5-.5zM7.5 12c.3-.3.8-.3 1 0L10 13.4l1.5-1.5a.7.7 0 011 0l1.5 1.5L15.4 12a.7.7 0 011 0l1.5 1.5L19.4 12a.7.7 0 011 0L22 13.5v.3A2.2 2.2 0 0119.8 16H3.3A3.3 3.3 0 010 12.7v-.3l1.5-1.5c.3-.4.8-.4 1 0zm10 2l-1.4-1.4-1.5 1.5a.7.7 0 01-1 0l-1.5-1.5-1.5 1.5a.7.7 0 01-1 0l-1.5-1.5-1.5 1.5a.7.7 0 01-1 0L4.2 14H19l-1.5-1.5z"/></svg>', water_temp: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20a5 5 0 01-5-5c0-1.8 1-3.4 2.5-4.2V5a2.5 2.5 0 015 0v5.8c1.5.8 2.5 2.4 2.5 4.2a5 5 0 01-5 5zM12 8a.5.5 0 00-1 0v6.2a3 3 0 102 0V8a.5.5 0 00-1 0z"/></svg>', currents: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12.1 3.2a1 1 0 00-1-.3h-1a1 1 0 00-.7 1.7L9 6H4.6a1 1 0 000 2H9L8.4 9.7a1 1 0 00.7 1.7h1a1 1 0 00.9-.5l2-3.5c.2-.3 0-.7-.4-.8zm11 12.3a1 1 0 01-.7 1.7h-1a1 1 0 01-1-.3l-1.8-3.2H4.6a1 1 0 110-2H17l-.6-1a1 1 0 111.7-.9l2.4 4.2a1 1 0 01.1.4zM12.9 21a1 1 0 01.5.9h-3a1 1 0 110-2h1.2l-1-1.7a1 1 0 011.7-.9l2 3.4a1 1 0 01-.4.3z"/></svg>' }; return icons[iconName] || ''; }
+        
+        function displayForecast(data){
+            const forecastContainerEl=document.getElementById('forecast-container'); document.getElementById('dateRange').textContent=data.dateRange||''; document.getElementById('fonti').textContent=data.fonti||''; forecastContainerEl.innerHTML='';
+            data.forecast.forEach((d,index)=>{
+                const cardEl=document.createElement('div'); cardEl.className=`forecast-card ${d.sfondo.toUpperCase()==='#1E436E'?'highlight':''}`;
+                const scoreData = d.pescaScoreData; const roundedScore = Math.floor(scoreData.numericScore); const decimalPart = scoreData.numericScore % 1;
+                let fishHtml = `<div class="pesca-container" data-day-index="${index}">`;
+                for (let i = 0; i < roundedScore; i++) { fishHtml += `<img src="fish_icon.png" class="pesca-icon" style="animation: fadeInFish 0.5s ${i * 0.1}s ease-out both;">`; }
+                if (decimalPart > 0.1 && roundedScore < 5) { const lastFishOpacity = Math.max(0.3, decimalPart); fishHtml += `<img src="fish_icon.png" class="pesca-icon" style="opacity: ${lastFishOpacity}; animation: fadeInFish 0.5s ${roundedScore * 0.1}s ease-out both;">`; }
+                fishHtml += '</div>';
+                const altaMareaStr=d.maree.split('|')[0].replace('Alta:','').trim(); const bassaMareaStr=d.maree.split('|')[1].replace('Bassa:','').trim(); const albaStr=d.alba.replace('☀️','').trim(); const tramontoStr=d.tramonto.trim();
+                const acronimoVal=d.acronimoMare||'-'; const tempAcquaVal=d.temperaturaAcqua!=='N/D'?`${d.temperaturaAcqua}°`:'-'; const correnteVal=d.velocitaCorrente!=='N/D'?`${d.velocitaCorrente} kn`:'-';
+                const acronimoStyled=`<span class="sea-acronym">${acronimoVal}</span>`; const tempAcquaStyled=`<span class="min-max">${tempAcquaVal}</span>`; const correnteStyled=`<span class="min-max">${correnteVal}</span>`;
+                const seaInfo=`${acronimoStyled}${tempAcquaStyled} ${correnteStyled}`;
+                let albaTramontoText=`☀️ ${albaStr} 🌙 ${tramontoStr}`; if(albaTramontoText.length > 14){albaTramontoText=`${albaStr} ${tramontoStr}`}
+                cardEl.innerHTML=`<div class="card-top"><div class="card-col-1"><div class="date-display"><span class="giorno-nome">${d.giornoNome}</span><span class="giorno-data">${d.giornoData}</span></div><div class="weather-and-moon"><div class="meteo-icon">${d.meteoIcon}</div><div class="moon-phase" title="${d.moon_phase}">${getMoonIcon(d.moon_phase)}</div></div>${fishHtml}</div><div class="data-grid"><div class="info-item"><span class="info-label">TEMPERATURA</span><span class="info-value">${d.temperaturaAvg}° <span class="min-max">${d.temperaturaMin}°/${d.temperaturaMax}°</span></span></div><div class="info-item"><span class="info-label">VENTO</span><span class="info-value">${d.ventoDati}</span></div><div class="info-item"><span class="info-label">ALTA MAREA</span><span class="info-value">${altaMareaStr}</span></div><div class="info-item"><span class="info-label">MARE</span><span class="info-value">${seaInfo}</span></div></div><div class="data-grid"><div class="info-item"><span class="info-label">UMIDITÀ</span><span class="info-value">${d.umidita}%</span></div><div class="info-item"><span class="info-label">PRESSIONE</span><span class="info-value">${d.pressione} hPa ${d.trendPressione}</span></div><div class="info-item"><span class="info-label">BASSA MAREA</span><span class="info-value">${bassaMareaStr}</span></div><div class="info-item"><span class="info-label">ALBA/TRAMONTO</span><span class="info-value">${albaTramontoText}</span></div></div></div><div class="finestre-pesca"><div class="finestra-item"><div class="finestra-label">FINESTRA MATTINO</div><div class="finestra-orario">${d.finestraMattino.orario}</div></div><div class="finestra-item"><div class="finestra-label">FINESTRA SERA</div><div class="finestra-orario">${d.finestraSera.orario}</div></div></div>`;
+                forecastContainerEl.appendChild(cardEl);
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const body = document.body;
+            const loadingEl = document.getElementById('loading');
+            const locationNameEl = document.getElementById('location-name');
+            const forecastContainer = document.getElementById('forecast-container');
+            const defaultLocation = '40.813238367880984,14.208944303204635';
+            const defaultCityName = 'Posillipo';
+            
+            async function fetchForecast(location, cityName) {
+                loadingEl.classList.remove('hidden'); forecastContainer.innerHTML=''; locationNameEl.textContent = cityName;
+                try {
+                    const response = await fetch(`/api/forecast?location=${location}`);
+                    if(!response.ok) throw new Error(`API request failed: ${response.statusText}`);
+                    const data = await response.json();
+                    if(!data.forecast || data.forecast.length === 0) throw new Error("Location not found or no valid data.");
+                    window.currentForecastData = data; // Cache data for modal
+                    displayForecast(data);
+                } catch(error) {
+                    console.error("Failed to load forecast data", error);
+                    forecastContainer.innerHTML=`<div class="error-message"><p>Oops! Something went wrong.</p><p>${error.message}</p></div>`;
+                } finally {
+                    loadingEl.classList.add('hidden');
+                }
+            }
+            fetchForecast(defaultLocation, defaultCityName);
+
+            // Modal logic
+            const modal=document.getElementById('score-details-modal'); const overlay=document.getElementById('score-details-overlay'); const listEl=document.getElementById('score-details-list'); let pressTimer;
+            function showScoreDetails(dayIndex){ if (!window.currentForecastData || !window.currentForecastData.forecast[dayIndex]) return; const dayForecast=window.currentForecastData.forecast[dayIndex]; if(!dayForecast||!dayForecast.pescaScoreData)return; listEl.innerHTML=''; dayForecast.pescaScoreData.reasons.forEach((reason, index) => { const li=document.createElement('li'); li.style.animationDelay = `${index * 0.05}s`; li.innerHTML=`<div class="reason-icon">${getReasonIcon(reason.icon)}</div><span class="reason-text">${reason.text}</span><span class="reason-points ${reason.type}-points">${reason.points}</span>`; listEl.appendChild(li); }); modal.classList.add('visible'); overlay.classList.add('visible'); }
+            function closeScoreDetails(e){ if(e) e.stopPropagation(); modal.classList.remove('visible'); overlay.classList.remove('visible') }
+            function startPress(e){ const target=e.target.closest('.pesca-container'); if(!target)return; const dayIndex=target.dataset.dayIndex; pressTimer=window.setTimeout(()=>{ showScoreDetails(dayIndex) }, 500); }
+            function cancelPress(){clearTimeout(pressTimer)}
+            forecastContainer.addEventListener('contextmenu', (e) => { if (e.target.closest('.pesca-container')) e.preventDefault(); });
+            forecastContainer.addEventListener('mousedown',startPress); forecastContainer.addEventListener('touchstart',startPress,{passive:true}); forecastContainer.addEventListener('mouseup',cancelPress); forecastContainer.addEventListener('mouseleave',cancelPress); forecastContainer.addEventListener('touchend',cancelPress);
+            document.getElementById('close-modal-btn').addEventListener('click',closeScoreDetails); overlay.addEventListener('click',closeScoreDetails);
+
+            // General UI and Search Logic
+            const mainHeader = document.getElementById('main-header'); let lastScrollY = window.scrollY;
+            window.addEventListener('scroll', () => { const currentScrollY = window.scrollY; if (currentScrollY > lastScrollY && currentScrollY > 50) { mainHeader.classList.add('header-condensed'); } else { mainHeader.classList.remove('header-condensed'); } lastScrollY = currentScrollY <= 0 ? 0 : currentScrollY; }, { passive: true });
+            
+            const sidenav=document.getElementById('sidenav');const sidenavBtn=document.getElementById('sidenav-btn');const sidenavOverlay=document.getElementById('sidenav-overlay');const optionsMenu=document.getElementById('options-menu');const optionsBtn=document.getElementById('options-btn');
+            sidenavBtn.addEventListener('click',()=>{sidenav.classList.add('open');sidenavOverlay.classList.add('visible')});
+            sidenavOverlay.addEventListener('click',()=>{sidenav.classList.remove('open');sidenavOverlay.classList.remove('visible')});
+            optionsBtn.addEventListener('click',(e)=>{e.stopPropagation();optionsMenu.classList.toggle('visible')});
+            document.addEventListener('click',()=>{if(optionsMenu.classList.contains('visible')){optionsMenu.classList.remove('visible')}});
+            
+            const searchView=document.getElementById('search-view');const searchBtn=document.getElementById('search-btn');const searchInput=document.getElementById('search-input');const backFromSearchBtn=document.getElementById('back-from-search-btn');const searchResultsContainer=document.getElementById('search-results-container');
+            const popularLocations = [ { name: 'Posillipo, Napoli', coords: '40.813238367880984,14.208944303204635' },{ name: 'Napoli, Italia', coords: '40.852,14.268' }, { name: 'Genova, Italia', coords: '44.4056,8.9463' }, { name: 'Livorno, Italia', coords: '43.551,10.308' }, { name: 'Civitavecchia, Italia', coords: '42.0927,11.796' }, { name: 'Cagliari, Italia', coords: '39.2238,9.1217' }, { name: 'Palermo, Italia', coords: '38.1157,13.3615' }, { name: 'Bari, Italia', coords: '41.1171,16.8719' }, { name: 'Ancona, Italia', coords: '43.6158,13.5189' }, { name: 'Venezia, Italia', coords: '45.4408,12.3155' } ];
+            
+            function displayPopularLocations(){
+                searchResultsContainer.innerHTML = `<div class="results-label">Località Popolari</div><ul id="autocomplete-results">${popularLocations.map(loc => `<li data-location="${loc.coords}" data-name="${loc.name.split(',')[0]}"><div class="result-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"></path></svg></div><div class="suggestion-text"><span class="suggestion-main">${loc.name.split(',')[0]}</span><span class="suggestion-secondary">${loc.name.split(',').slice(1).join(',').trim()}</span></div></li>`).join('')}</ul>`;
+            }
+            searchBtn.addEventListener('click',()=>{body.classList.add('search-active'); displayPopularLocations(); searchInput.focus();});
+            backFromSearchBtn.addEventListener('click',()=>{body.classList.remove('search-active'); searchInput.value=''; searchResultsContainer.innerHTML='';});
+            searchResultsContainer.addEventListener('click', (event) => {
+                const li = event.target.closest('li');
+                if(li) { const location = li.dataset.location; const cityName = li.dataset.name; fetchForecast(location, cityName); body.classList.remove('search-active'); searchInput.value = ''; searchResultsContainer.innerHTML = ''; }
+            });
+            const gpsBtn = document.getElementById('gps-btn');
+            gpsBtn.addEventListener('click',()=>{ if(!navigator.geolocation){alert("Geolocalizzazione non supportata.");return;} loadingEl.classList.remove('hidden'); navigator.geolocation.getCurrentPosition( async (position)=>{ const {latitude: lat, longitude: lon} = position.coords; const location=`${lat},${lon}`; try{const response=await fetch(`/api/reverse-geocode?lat=${lat}&lon=${lon}`); if(!response.ok)throw new Error('Servizio di localizzazione non disponibile.'); const data = await response.json(); const cityName=data.name||"La mia Posizione"; await fetchForecast(location, cityName);}catch(error){console.error("Errore reverse geocoding:",error); await fetchForecast(location, "La mia Posizione");}}, (error)=>{ loadingEl.classList.add('hidden'); let userMessage = "Impossibile ottenere la posizione."; if(error.code===error.PERMISSION_DENIED){userMessage += "Devi concedere il permesso nelle impostazioni del browser e del sito.";} alert(userMessage); }, {enableHighAccuracy: true}); });
+        });
+    </script>
+</body>
+</html>

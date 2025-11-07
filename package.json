@@ -1,0 +1,53 @@
+{
+  "name": "pesca-api",
+  "version": "2.0.0-MCP",
+  "type": "module",
+  "description": "Backend API for Meteo Pesca with MCP-enhanced RAG",
+  "main": "server.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "migrate-kb": "node tools/migrate-to-chromadb.js",
+    "dev": "nodemon server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pincopallaclaude/pesca-api.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/pincopallaclaude/pesca-api/issues"
+  },
+  "homepage": "https://github.com/pincopallaclaude/pesca-api#readme",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.21.0",
+    "@google/generative-ai": "^0.16.0",
+    "@huggingface/inference": "^4.13.0",
+    "@mistralai/mistralai": "^0.1.3",
+    "@modelcontextprotocol/sdk": "^1.20.1",
+    "axios": "^1.12.2",
+    "cheerio": "^1.1.2",
+    "chromadb": "^3.1.1",
+    "chromadb-default-embed": "^2.14.0",
+    "cors": "^2.8.5",
+    "date-fns": "^2.30.0",
+    "date-fns-tz": "^2.0.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "google-search-results-nodejs": "^2.1.0",
+    "lunr": "^2.3.9",
+    "node-cache": "^5.1.2",
+    "puppeteer": "^24.24.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "devDependencies": {
+    "@flydotio/dockerfile": "^0.7.10",
+    "nodemon": "^3.1.10"
+  }
+}

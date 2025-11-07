@@ -1,0 +1,16 @@
+# docker-compose.yml
+services:
+  chromadb:
+    # --- MODIFICA ---
+    image: chromadb/chroma:latest # Usa l'immagine più recente
+    # --- FINE MODIFICA ---
+    container_name: pesca-api-chroma-dev
+    ports:
+      - "8001:8000"
+    environment:
+      - ANONYMIZED_TELEMETRY=FALSE
+      # Aggiungiamo questa variabile per la persistenza, richiesta dalle versioni recenti
+      - IS_PERSISTENT=TRUE
+    volumes:
+      # La persistenza è ora obbligatoria, quindi attiviamo i volumi
+      - ./chroma-data-docker:/chroma/chroma
