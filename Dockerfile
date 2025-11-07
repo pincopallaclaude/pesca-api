@@ -20,8 +20,5 @@ RUN npm ci --only=production
 # Copia tutto il resto del codice dell'applicazione.
 COPY . .
 
-# Esponi la porta del server Node.js che Render userà.
-EXPOSE 8080
-
 # Comando di avvio che orchestra i due processi.
 CMD ["/bin/sh", "-c", "uvicorn chromadb.app:app --host 127.0.0.1 --port 8001 & sleep 15 && exec node server.js"]
