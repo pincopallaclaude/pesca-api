@@ -20,5 +20,8 @@ RUN npm ci --only=production
 # Copia tutto il resto del codice dell'applicazione.
 COPY . .
 
+# Esponi esplicitamente la porta 10000 che Render si aspetta per i Web Services.
+EXPOSE 10000
+
 # Comando di avvio che orchestra i due processi.
 CMD ["/bin/sh", "-c", "uvicorn chromadb.app:app --host 127.0.0.1 --port 8001 & sleep 15 && exec node server.js"]
