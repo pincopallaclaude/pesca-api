@@ -3,6 +3,9 @@
 console.log('--- [SERVER BOOT] Entry point server.js caricato ---');
 console.log('[SERVER BOOT] 📦 Tentativo di importazione dei moduli...');
 
+// --- NUOVA VARIABILE DI STATO GLOBALE ---
+let isServerReady = false;
+
 // Uso di await di primo livello (Top-Level Await) per le importazioni
 try {
     // Importazioni di librerie standard
@@ -84,6 +87,18 @@ try {
         // Route per il controllo di stato e la connettività MCP
         app.get('/health', (req, res) => {
             const mcpStatus = mcpClient.connected ? 'connected' : 'disconnected';
+            
+            // CONTROLLO CRITICO: Se il server non ha ancora completato startServer(), restituisce 503
+            if (!isServerReady) {
+                console.warn('[HEALTH] Server non pronto, restituisco 503.');
+                return res.status(503).json({ 
+                    status: 'initializing', 
+                    message: 'Attendo connessione MCP/ChromaDB.',
+                    mcp: mcpStatus, 
+                    timestamp: new Date().toISOString() 
+                });
+            }
+
             res.json({ status: 'ok', mcp: mcpStatus, timestamp: new Date().toISOString() });
         });
 
@@ -177,6 +192,9 @@ try {
         app.listen(PORT, () => {
           console.log(`[SERVER STARTUP] 🎣 Server pronto e in ascolto sulla porta ${PORT}`);
           console.log(`[SERVER STARTUP] 🤖 Sistema MCP-Enhanced attivo`);
+          
+          // IMPOSTA LO STATO "PRONTO" SOLO DOPO L'AVVIO CORRETTO
+          isServerReady = true;
         });
     }
 
