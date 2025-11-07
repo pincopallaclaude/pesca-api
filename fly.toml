@@ -13,7 +13,7 @@ primary_region = 'ams'
 # 'chroma run' viene avviato in background (&), e 'exec node server.js'
 # viene eseguito in foreground, mantenendo il container attivo.
 [processes]
-  app = "/bin/sh -c 'chroma run --host 0.0.0.0 --port 8001 --path /data/chroma & exec node server.js'"
+  app = "/bin/sh -c 'chroma run --host 127.0.0.1 --port 8001 --path /data/chroma & exec node server.js'"
 
 # Il servizio pubblico espone la porta dell'app Node.js.
 [[services]]
