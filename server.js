@@ -1,109 +1,104 @@
 // server.js
 
+import express from 'express';
+import cors from 'cors';
+import 'dotenv/config';
+import * as logger from './lib/utils/logger.js'; // Aggiunto per un logging coerente
+
 console.log('--- [SERVER BOOT] Entry point server.js caricato ---');
-console.log('[SERVER BOOT] 📦 Tentativo di importazione dei moduli...');
+console.log('[SERVER BOOT] 📦 Tentativo di avvio rapido...');
 
-// --- NUOVA VARIABILE DI STATO GLOBALE ---
-let isServerReady = false;
+// --- DEFINISCI L'APP E L'HEALTH CHECK IMMEDIATO ---
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-// Uso di await di primo livello (Top-Level Await) per le importazioni
-try {
-    // Importazioni di librerie standard
-    const { default: express } = await import('express');
-    const { default: cors } = await import('cors');
-    await import('dotenv/config');
+// Inizializza una variabile per tenere traccia dello stato di prontezza dei servizi critici
+let servicesReady = false; 
+const CRITICAL_SERVICES = ['ChromaDB', 'MCP'];
+const serviceStatus = { ChromaDB: 'initializing', MCP: 'initializing' };
 
-    // Moduli core e servizi
-    const { fetchAndProcessForecast, POSILLIPO_COORDS } = await import('./lib/forecast-logic.js');
-    console.log('[SERVER BOOT] ✅ forecast-logic importato');
 
-    const { analysisCache } = await import('./lib/utils/cache.manager.js');
-    console.log('[SERVER BOOT] ✅ cache.manager importato');
-    
-    const { initializeChromaDB } = await import('./lib/services/chromadb.service.js');
-    
-    const { mcpClient } = await import('./lib/services/mcp-client.service.js');
-    console.log('[SERVER BOOT] ✅ mcp-client importato');
-
-    // Handler API
-    const { default: autocompleteHandler } = await import('./api/autocomplete.js');
-    const { default: reverseGeocodeModule } = await import('./api/reverse-geocode.js');
-    const { default: analyzeDayFallbackModule } = await import('./api/analyze-day-fallback.js');
-    const { default: queryNaturalLanguage } = await import('./api/query-natural-language.js');
-    const { default: recommendSpecies } = await import('./api/recommend-species.js');
-    console.log('[SERVER BOOT] ✅ Tutti gli handler API importati');
-
-    console.log('--- [SERVER BOOT] Tutti i moduli importati con successo ---');
-
-    // Validazione environment
-    if (!process.env.GEMINI_API_KEY) {
-        console.error("FATAL ERROR: GEMINI_API_KEY not found!");
-        process.exit(1);
+// Health check primario: risponde subito con 200/ok a Render/Kubernetes
+app.get('/health', (req, res) => {
+    // Risponde con 503 se i servizi critici non sono ancora pronti
+    if (!servicesReady) {
+        logger.warn('[HEALTH] Server non completamente pronto, restituisco 503.');
+        return res.status(503).json({ 
+            status: 'initializing', 
+            message: 'Attendo l\'inizializzazione dei servizi critici (ChromaDB, MCP).',
+            details: serviceStatus,
+            timestamp: new Date().toISOString() 
+        });
     }
-    
-    // --- AVVIO E SHUTDOWN ---
-    async function startServer() {
-        console.log('[SERVER STARTUP] 🚀 Inizializzazione e verifica delle dipendenze...');
-        
-        // Loop di retry per la connessione a ChromaDB
-        let chromaReady = false;
-        for (let i = 0; i < 10; i++) {
-            try {
-                // initializeChromaDB è thread-safe e lazy
-                await initializeChromaDB();
-                chromaReady = true;
-                console.log('[SERVER STARTUP] ✅ ChromaDB pronto');
-                break; // Esci dal loop se la connessione ha successo
-            } catch (error) {
-                console.warn(`[SERVER STARTUP] ⏳ ChromaDB non ancora pronto (tentativo ${i + 1}/10). Riprovo in 3s...`);
-                await new Promise(res => setTimeout(res, 3000)); // Attendi 3 secondi
-            }
-        }
 
-        if (!chromaReady) {
-            console.error('[SERVER STARTUP] ❌ ChromaDB fallito dopo 10 tentativi. Uscita.');
+    res.json({ status: 'ok', message: 'Servizi critici pronti.', details: serviceStatus, timestamp: new Date().toISOString() });
+});
+
+// Import asincroni e avvio principale
+async function start() {
+    try {
+        if (!process.env.GEMINI_API_KEY) {
+            console.error("FATAL ERROR: GEMINI_API_KEY not found!");
             process.exit(1);
         }
+
+        // Importazioni di moduli core e servizi
+        const { fetchAndProcessForecast, POSILLIPO_COORDS } = await import('./lib/forecast-logic.js');
+        const { analysisCache } = await import('./lib/utils/cache.manager.js');
+        const { initializeChromaDB } = await import('./lib/services/chromadb.service.js');
+        const { mcpClient } = await import('./lib/services/mcp-client.service.js');
         
-        // Step 2: Connette client MCP
-        console.log('[SERVER STARTUP] 🔌 Connessione MCP client...');
-        await mcpClient.connect();
-        console.log('[SERVER STARTUP] ✅ MCP client connesso');
-
-        // --- SOLO ORA L'APP E LE SUE ROUTE VENGONO CREATE E CONFIGURATE ---
+        // Handler API
+        const { default: autocompleteHandler } = await import('./api/autocomplete.js');
+        const { default: reverseGeocodeModule } = await import('./api/reverse-geocode.js');
+        const { default: analyzeDayFallbackModule } = await import('./api/analyze-day-fallback.js');
+        const { default: queryNaturalLanguage } = await import('./api/query-natural-language.js');
+        const { default: recommendSpecies } = await import('./api/recommend-species.js');
         
-        const app = express();
-        const PORT = process.env.PORT || 10000;
+        console.log('--- [SERVER BOOT] Moduli principali importati ---');
 
-        // --- MIDDLEWARE ---
-        app.use(cors());
-        app.use(express.json());
+        // --- INIZIALIZZAZIONE DEI SERVIZI IN BACKGROUND (Non-Blocking) ---
+        
+        // 1. Inizializzazione ChromaDB (con retry logic integrata in getCollection)
+        initializeChromaDB()
+            .then(() => {
+                serviceStatus.ChromaDB = 'ready';
+                logger.log("[BACKGROUND] ✅ ChromaDB pronto.");
+                checkServicesReady();
+            })
+            .catch(err => {
+                serviceStatus.ChromaDB = 'failed';
+                logger.error("[BACKGROUND] ❌ Inizializzazione ChromaDB fallita:", err.message);
+            });
 
-        // --- ROUTES ---
+        // 2. Connessione MCP client
+        mcpClient.connect()
+            .then(() => {
+                serviceStatus.MCP = 'ready';
+                logger.log("[BACKGROUND] ✅ MCP client connesso.");
+                checkServicesReady();
+            })
+            .catch(err => {
+                serviceStatus.MCP = 'failed';
+                logger.error("[BACKGROUND] ❌ Connessione MCP client fallita:", err.message);
+            });
 
-        // Route di controllo "Sono vivo?"
-        app.get('/', (req, res) => res.status(200).send('Pesca API Server is running!'));
-
-        // Route per il controllo di stato e la connettività MCP
-        app.get('/health', (req, res) => {
-            const mcpStatus = mcpClient.connected ? 'connected' : 'disconnected';
-            
-            // CONTROLLO CRITICO: Se il server non ha ancora completato startServer(), restituisce 503
-            if (!isServerReady) {
-                console.warn('[HEALTH] Server non pronto, restituisco 503.');
-                return res.status(503).json({ 
-                    status: 'initializing', 
-                    message: 'Attendo connessione MCP/ChromaDB.',
-                    mcp: mcpStatus, 
-                    timestamp: new Date().toISOString() 
-                });
+        function checkServicesReady() {
+            if (serviceStatus.ChromaDB === 'ready' && serviceStatus.MCP === 'ready') {
+                servicesReady = true;
+                logger.log('[SERVER STARTUP] 🏁 Tutti i servizi critici sono ora pronti.');
             }
-
-            res.json({ status: 'ok', mcp: mcpStatus, timestamp: new Date().toISOString() });
-        });
+        }
+        
+        // --- ROUTES DELL'APPLICAZIONE (che dipendono dai servizi) ---
+        
+        // Route di controllo
+        app.get('/', (req, res) => res.status(200).send('Pesca API Server is running!'));
 
         // Route principale per i dati meteo
         app.get('/api/forecast', async (req, res) => {
+            if (!servicesReady) return res.status(503).json({ message: "Servizi non pronti, attendere." });
             try {
                 const location = req.query.location || POSILLIPO_COORDS;
                 const forecastData = await fetchAndProcessForecast(location);
@@ -118,7 +113,7 @@ try {
         app.get('/api/autocomplete', autocompleteHandler);
         app.get('/api/reverse-geocode', reverseGeocodeModule);
 
-        // RE-ADDED: Route per l'aggiornamento forzato della cache (Cron Job)
+        // Route per l'aggiornamento forzato della cache (Cron Job)
         app.get('/api/update-cache', async (req, res) => {
             const secret = req.query.secret;
             if (secret !== process.env.CRON_SECRET_KEY) {
@@ -126,7 +121,6 @@ try {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
             try {
-                // Aggiorna i dati per la posizione di default (Posillipo)
                 await fetchAndProcessForecast(POSILLIPO_COORDS); 
                 console.log('[CRON JOB] ✅ Cache di Posillipo aggiornata con successo.');
                 return res.status(200).json({ status: 'ok', message: 'Cache aggiornata' });
@@ -136,16 +130,16 @@ try {
             }
         });
 
-
         // =========================================================================
         // --- [PHANTOM] ENDPOINT A LATENZA ZERO (PRIMARIO) ---
         // =========================================================================
         app.post('/api/get-analysis', async (req, res) => {
+            if (!servicesReady) return res.status(503).json({ message: "Servizi non pronti, attendere." });
+
             try {
                 const { lat, lon } = req.body;
                 if (!lat || !lon) return res.status(400).json({ error: 'Coordinate mancanti' });
                 
-                // Chiave di cache con precisione fissa
                 const cacheKey = `${parseFloat(lat).toFixed(3)}_${parseFloat(lon).toFixed(3)}`;
                 const cachedData = analysisCache.get(cacheKey);
                 
@@ -153,7 +147,6 @@ try {
                     console.log(`[Phantom-API] ✅ Cache HIT per ${cacheKey}. Risposta istantanea.`);
                     const isNewFormat = typeof cachedData === 'object' && cachedData.analysis;
                     
-                    // Estrae l'analisi e i metadati in base al formato
                     const analysisResult = isNewFormat ? cachedData.analysis : cachedData;
                     const metadata = isNewFormat ? {
                         locationName: cachedData.locationName,
@@ -171,7 +164,6 @@ try {
                     });
                 } else {
                     console.log(`[Phantom-API] ⏳ Cache MISS per ${cacheKey}. Il client userà il fallback.`);
-                    // Risposta 202 (Accepted) per indicare che l'elaborazione è iniziata/attesa dal client
                     res.status(202).json({ status: 'pending', message: 'Analisi in elaborazione...' });
                 }
             } catch (error) {
@@ -187,29 +179,25 @@ try {
         app.post('/api/query', queryNaturalLanguage);
         app.post('/api/recommend-species', recommendSpecies);
 
-        // Step 3: Avvia Express DOPO che tutte le dipendenze sono state soddisfatte
-        // Utilizziamo solo PORT, Render gestirà l'host
-        app.listen(PORT, () => {
-          console.log(`[SERVER STARTUP] 🎣 Server pronto e in ascolto sulla porta ${PORT}`);
-          console.log(`[SERVER STARTUP] 🤖 Sistema MCP-Enhanced attivo`);
-          
-          // IMPOSTA LO STATO "PRONTO" SOLO DOPO L'AVVIO CORRETTO
-          isServerReady = true;
+        // Gestione dello shutdown per chiudere correttamente la connessione MCP
+        process.on('SIGTERM', async () => {
+            logger.log('📴 SIGTERM ricevuto, shutdown graceful...');
+            await mcpClient.disconnect();
+            process.exit(0);
         });
+
+        // Avvia Express
+        const PORT = process.env.PORT || 10000;
+        app.listen(PORT, () => {
+          logger.log(`[SERVER STARTUP] 🎣 Server pronto e in ascolto sulla porta ${PORT}`);
+        });
+
+    } catch (e) {
+        console.error('--- [FATAL BOOT ERROR] Errore durante l\'avvio e le importazioni ---');
+        console.error(e);
+        process.exit(1);
     }
-
-    // RE-ADDED: Gestione dello shutdown per chiudere correttamente la connessione MCP
-    process.on('SIGTERM', async () => {
-        console.log('📴 SIGTERM ricevuto, shutdown graceful...');
-        await mcpClient.disconnect();
-        process.exit(0);
-    });
-    
-    // Avvia l'applicazione
-    startServer();
-
-} catch (e) {
-    console.error('--- [FATAL BOOT ERROR] Errore durante l\'avvio e le importazioni ---');
-    console.error(e);
-    process.exit(1);
 }
+
+// Avvia l'applicazione
+start();
