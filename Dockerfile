@@ -18,4 +18,4 @@ COPY . .
 EXPOSE 10000
 
 # Il comando di avvio rimane lo stesso, ma ora eseguirà il server ChromaDB v0.5.0
-CMD ["/bin/sh", "-c", "uvicorn chromadb.app:app --host 127.0.0.1 --port 8001 & sleep 15 && exec node server.js"]
+CMD ["/bin/sh", "-c", "uvicorn chromadb.app:app --host 127.0.0.1 --port 8001 --anonymized-telemetry=False & sleep 15 && exec node server.js"]
