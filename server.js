@@ -3,7 +3,7 @@
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
-import * as logger from './lib/utils/logger.js'; // Aggiunto per un logging coerente
+import * as logger from './lib/utils/logger.js';
 
 console.log('--- [SERVER BOOT] Entry point server.js caricato ---');
 console.log('[SERVER BOOT] 📦 Tentativo di avvio rapido...');
@@ -60,7 +60,7 @@ async function start() {
 
         // --- INIZIALIZZAZIONE DEI SERVIZI IN BACKGROUND (Non-Blocking) ---
         
-        // 1. Inizializzazione ChromaDB (con retry logic integrata in getCollection)
+        // 1. Inizializzazione ChromaDB (potrebbe richiedere tempo o retry)
         initializeChromaDB()
             .then(() => {
                 serviceStatus.ChromaDB = 'ready';
@@ -72,16 +72,17 @@ async function start() {
                 logger.error("[BACKGROUND] ❌ Inizializzazione ChromaDB fallita:", err.message);
             });
 
-        // 2. Connessione MCP client
+        // 2. Connessione MCP client (Ora è un mock locale e quasi istantaneo)
         mcpClient.connect()
             .then(() => {
                 serviceStatus.MCP = 'ready';
-                logger.log("[BACKGROUND] ✅ MCP client connesso.");
+                // Logger più conciso dato che non si aspetta un avvio di processo
+                logger.log("[BACKGROUND] ✅ MCP Mock client connesso.");
                 checkServicesReady();
             })
             .catch(err => {
                 serviceStatus.MCP = 'failed';
-                logger.error("[BACKGROUND] ❌ Connessione MCP client fallita:", err.message);
+                logger.error("[BACKGROUND] ❌ Connessione MCP client fallita (Mock):", err.message);
             });
 
         function checkServicesReady() {
@@ -179,13 +180,8 @@ async function start() {
         app.post('/api/query', queryNaturalLanguage);
         app.post('/api/recommend-species', recommendSpecies);
 
-        // Gestione dello shutdown per chiudere correttamente la connessione MCP
-        process.on('SIGTERM', async () => {
-            logger.log('📴 SIGTERM ricevuto, shutdown graceful...');
-            await mcpClient.disconnect();
-            process.exit(0);
-        });
-
+        // --- RIMOSSO IL BLOCCO SIGTERM (La simulazione MCP non ha un processo da chiudere) ---
+        
         // Avvia Express
         const PORT = process.env.PORT || 10000;
         app.listen(PORT, () => {
