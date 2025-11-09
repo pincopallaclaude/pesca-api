@@ -43,6 +43,21 @@ async function start() {
             process.exit(1);
         }
 
+        // --- INIZIO BLOCCO DI TEST DI CONNETTIVITÀ CHROMA CLOUD ---
+        console.log('[NETWORK TEST] Eseguo test di connettività verso Chroma Cloud...');
+        try {
+            // Utilizziamo un endpoint heartbeat standard di Chroma
+            const response = await fetch('https://api.trychroma.com/api/v1/heartbeat');
+            console.log(`[NETWORK TEST] Risposta da Chroma Cloud: ${response.status} ${response.statusText}`);
+            if (!response.ok) {
+                const text = await response.text();
+                console.error(`[NETWORK TEST] Dettagli errore: ${text}`);
+            }
+        } catch (e) {
+            console.error(`[NETWORK TEST] ❌ Fallimento critico del fetch: ${e.message}`);
+        }
+        // --- FINE BLOCCO DI TEST ---
+
         // Importazioni di moduli core e servizi
         const { fetchAndProcessForecast, POSILLIPO_COORDS } = await import('./lib/forecast-logic.js');
         const { analysisCache } = await import('./lib/utils/cache.manager.js');
@@ -180,8 +195,6 @@ async function start() {
         app.post('/api/query', queryNaturalLanguage);
         app.post('/api/recommend-species', recommendSpecies);
 
-        // --- RIMOSSO IL BLOCCO SIGTERM (La simulazione MCP non ha un processo da chiudere) ---
-        
         // Avvia Express
         const PORT = process.env.PORT || 10000;
         app.listen(PORT, () => {
