@@ -3,12 +3,11 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# --- MODIFICA CHIAVE ---
-# Installa Python e poi usa PIP per installare una versione RECENTE e specifica di ChromaDB
+
+# Installa Python e poi usa PIP per installare versioni SPECIFICHE e COMPATIBILI dei pacchetti
 RUN apt-get update && apt-get install -y python3 python3-pip curl wget && \
-    pip3 install "chromadb==0.5.0" "uvicorn[standard]" "pydantic-settings" "opentelemetry-instrumentation-fastapi" --break-system-packages && \
+    pip3 install "numpy<2.0" "chromadb==0.5.0" "uvicorn[standard]" "pydantic-settings" "opentelemetry-instrumentation-fastapi" --break-system-packages && \
     rm -rf /var/lib/apt/lists/*
-# --- FINE MODIFICA ---
 
 # Copia e installa le dipendenze Node.js (con la libreria 'next')
 COPY package.json package-lock.json ./
