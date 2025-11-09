@@ -19,4 +19,4 @@ COPY . .
 EXPOSE 10000
 
 # Il comando di avvio torna a essere quello semplice, senza flag extra
-CMD ["/bin/sh", "-c", "uvicorn chromadb.app:app --host 127.0.0.1 --port 8001 & sleep 15 && exec node server.js"]
+CMD ["/bin/sh", "-c", "uvicorn chromadb.app:app --host 127.0.0.1 --port 8001 --log-level=warning & sleep 15 && exec node server.js"]
