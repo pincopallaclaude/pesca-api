@@ -103,7 +103,7 @@ Strategia di caching a due livelli:
 
     * Servizi AI Utilizzati:
         - Google Gemini Pro (via API):
-            - Modello Generativo (gemini-1.5-flash): Per la generazione di testo dell'analisi.
+            - Modello Generativo (gemini-2.5-flash): Per la generazione di testo dell'analisi.
             - Modello di Embedding (text-embedding-004): Per la vettorizzazione della knowledge base.
 
 ---

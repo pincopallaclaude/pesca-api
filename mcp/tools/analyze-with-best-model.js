@@ -28,7 +28,7 @@ async function selectModel(complexity, location) {
         return { model: mistral, provider: 'mistralai', modelUsed: 'open-mistral-7b' };
     }
     logger.log(`[MCP Multi-Model] 🎯 Routing automatico: gemini (Claude: ${isPremiumLocation}, Mistral: true)`);
-    return { model: { generateChatCompletion: generateAnalysis }, provider: 'google', modelUsed: 'gemini-1.5-flash' };
+    return { model: { generateChatCompletion: generateAnalysis }, provider: 'google', modelUsed: 'gemini-2.5-flash' };
 }
 
 
