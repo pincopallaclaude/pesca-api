@@ -2,9 +2,9 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-// --- CORREZIONE: Punta al file corretto 'chromadb.service.js' ---
 import { addDocuments, initializeChromaDB } from '../lib/services/chromadb.service.js'; 
-import * as logger from '../utils/logger.js';
+// --- CORREZIONE: Il percorso corretto per il logger è '../lib/utils/logger.js' ---
+import * as logger from '../lib/utils/logger.js'; 
 import crypto from 'crypto';
 
 export async function migrateKnowledgeBase() {
