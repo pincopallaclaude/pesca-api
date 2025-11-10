@@ -1,4 +1,5 @@
 // mcp/tools/analyze-with-best-model.js
+
 import { queryKnowledgeBase } from '../../lib/services/vector.service.js';
 import { generateAnalysis } from '../../lib/services/gemini.service.js';
 import * as claude from '../../lib/services/claude.service.js';
@@ -50,6 +51,15 @@ export async function analyzeWithBestModel({ weatherData, location }) {
             useReranking: true,
             rerankTopK: 15
         });
+        
+        // --- NUOVI LOG DI DEBUG ---
+        console.log("--- DEBUG RE-RANKER ---");
+        console.log("Risultato di queryKnowledgeBase (dovrebbe includere il re-ranking):");
+        // Stampiamo la struttura per vedere se ci sono elementi undefined
+        console.log(JSON.stringify(contextDocs, null, 2)); 
+        console.log(`Numero di documenti ricevuti: ${contextDocs ? contextDocs.length : 'null'}`);
+        console.log("--- FINE DEBUG RE-RANKER ---");
+        // --- FINE LOG ---
         
         logger.log(`[MCP Multi-Model] ✅ Trovati ${contextDocs.length} documenti KB`);
         const contextText = contextDocs.map(doc => `Contesto: ${doc.content}`).join('\n\n');
