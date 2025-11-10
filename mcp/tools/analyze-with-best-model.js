@@ -1,7 +1,7 @@
 // mcp/tools/analyze-with-best-model.js
+
 import { queryKnowledgeBase } from '../../lib/services/vector.service.js';
-// --- CORREZIONE: Il nome corretto della funzione è 'generateGeminiChatCompletion' ---
-import { generateGeminiChatCompletion } from '../../lib/services/gemini.service.js'; 
+import { generateAnalysis } from '../../lib/services/gemini.service.js'; 
 import * as claude from '../../lib/services/claude.service.js';
 import * as mistral from '../../lib/services/mistral.service.js';
 import * as logger from '../../lib/utils/logger.js';
@@ -28,8 +28,7 @@ async function selectModel(complexity, location) {
         return { model: mistral, provider: 'mistralai', modelUsed: 'open-mistral-7b' };
     }
     logger.log(`[MCP Multi-Model] 🎯 Routing automatico: gemini (Claude: ${isPremiumLocation}, Mistral: true)`);
-    // --- CORREZIONE: Usiamo il nome corretto della funzione anche qui ---
-    return { model: { generateChatCompletion: generateGeminiChatCompletion }, provider: 'google', modelUsed: 'gemini-1.5-flash' };
+    return { model: { generateChatCompletion: generateAnalysis }, provider: 'google', modelUsed: 'gemini-1.5-flash' };
 }
 
 export async function analyzeWithBestModel({ weatherData, location }) {
@@ -40,7 +39,6 @@ export async function analyzeWithBestModel({ weatherData, location }) {
     const query = `consigli e tecniche di pesca per condizioni meteo: ${weatherData.weatherDesc}, vento ${weatherData.ventoDati}, mare ${weatherData.mare}, e pressione ${weatherData.pressione} hPa.`;
     
     const filters = {};
-    // Disabilitiamo il filtro per far funzionare la ricerca
     logger.log(`[MCP Multi-Model] 🔎 Filtri ChromaDB:`, filters);
 
     logger.log('[MCP Multi-Model] 🔍 Eseguo query RAG su ChromaDB con re-ranking attivato...');
@@ -80,6 +78,7 @@ export async function analyzeWithBestModel({ weatherData, location }) {
     `;
 
     const startTime = Date.now();
+    // La chiamata qui non cambia perché abbiamo standardizzato l'interfaccia
     const analysis = await model.generateChatCompletion(prompt);
     const elapsed = Date.now() - startTime;
     logger.log(`[MCP Multi-Model] 🏁 Completato con ${modelUsed} in ${elapsed}ms`);
