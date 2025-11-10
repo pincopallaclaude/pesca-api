@@ -1,6 +1,6 @@
 // mcp/tools/analyze-with-best-model.js
 
-import { queryKnowledgeBase } from '../../lib/services/vector.service.js';
+import { queryKnowledgeBase } from '../../lib/services/chromadb.service.js';
 import { generateAnalysis } from '../../lib/services/gemini.service.js';
 import * as claude from '../../lib/services/claude.service.js';
 import * as mistral from '../../lib/services/mistral.service.js';
@@ -41,18 +41,18 @@ export async function analyzeWithBestModel({ weatherData, location }) {
 
         const query = `consigli e tecniche di pesca per condizioni meteo: ${weatherData.weatherDesc}, vento ${weatherData.ventoDati}, mare ${weatherData.mare}, e pressione ${weatherData.pressione} hPa.`;
         
-        const filters = {};
-        logger.log(`[MCP Multi-Model] 🔎 Filtri ChromaDB:`, filters);
+        // Ho rimosso l'oggetto 'filters' non utilizzato per pulizia del codice, 
+        // e rimosso il log ad esso associato.
 
         logger.log('[MCP Multi-Model] 🔍 Eseguo query RAG su ChromaDB con re-ranking attivato...');
         const contextDocs = await queryKnowledgeBase(query, {
             topK: 5,
-            filters: Object.keys(filters).length > 0 ? filters : null,
+            filters: null, // Passiamo null direttamente
             useReranking: true,
             rerankTopK: 15
         });
         
-        // --- NUOVI LOG DI DEBUG ---
+        // --- LOG DI DEBUG MANTENUTI ---
         console.log("--- DEBUG RE-RANKER ---");
         console.log("Risultato di queryKnowledgeBase (dovrebbe includere il re-ranking):");
         // Stampiamo la struttura per vedere se ci sono elementi undefined
