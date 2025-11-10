@@ -97,6 +97,64 @@ async function start() {
         // Route di controllo
         app.get('/', (req, res) => res.status(200).send('Pesca API Server is running!'));
 
+        // =========================================================================
+        // --- NUOVO ENDPOINT DI DIAGNOSTICA (Admin) ---
+        // =========================================================================
+        app.get('/admin/inspect-db', async (req, res) => {
+            // Aggiungiamo una protezione base con un "secret"
+            if (req.query.secret !== (process.env.ADMIN_SECRET || 'supersecret')) {
+                return res.status(401).send('Unauthorized');
+            }
+
+            console.log('[Admin] Eseguo ispezione del database...');
+            try {
+                // Importazione locale di axios, dato che è un'importazione asincrona globale
+                const { default: axios } = await import('axios');
+                const CHROMA_API_URL = 'http://127.0.0.1:8001/api/v1';
+                const COLLECTION_NAME = process.env.CHROMA_COLLECTION || 'fishing_knowledge';
+
+                let inspectionResult = {};
+
+                // 1. Lista tutte le collection
+                const collections = await axios.get(`${CHROMA_API_URL}/collections`);
+                const collection = collections.data.find(c => c.name === COLLECTION_NAME);
+
+                if (!collection) {
+                    inspectionResult.error = `Collection "${COLLECTION_NAME}" non trovata.`;
+                    return res.status(404).json(inspectionResult);
+                }
+
+                inspectionResult.collectionName = collection.name;
+                inspectionResult.collectionId = collection.id;
+                
+                // 2. Conta i documenti
+                const countResponse = await axios.get(`${CHROMA_API_URL}/collections/${collection.id}/count`);
+                inspectionResult.documentCount = countResponse.data;
+
+                // 3. Recupera un campione di documenti se presenti
+                if (countResponse.data > 0) {
+                    const getResponse = await axios.post(`${CHROMA_API_URL}/collections/${collection.id}/get`, { 
+                        limit: 10, 
+                        include: ["metadatas", "documents"] 
+                    });
+                    inspectionResult.sampleDocuments = getResponse.data.documents;
+                    inspectionResult.sampleMetadatas = getResponse.data.metadatas;
+                } else {
+                    inspectionResult.sampleDocuments = [];
+                    inspectionResult.sampleMetadatas = [];
+                }
+                
+                console.log('[Admin] Ispezione completata.');
+                res.json(inspectionResult);
+
+            } catch (error) {
+                console.error('[Admin] Errore durante ispezione:', error.response ? error.response.data : error.message);
+                res.status(500).json({ error: error.message, details: error.response ? error.response.data : null });
+            }
+        });
+        // --- FINE ENDPOINT DI DIAGNOSTICA ---
+
+
         // Route principale per i dati meteo
         app.get('/api/forecast', async (req, res) => {
             if (!servicesReady) return res.status(503).json({ message: "Servizi non pronti, attendere." });
