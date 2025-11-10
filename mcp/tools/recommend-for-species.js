@@ -1,8 +1,8 @@
 // /mcp/tools/recommend-for-species.js
 
-import { queryKnowledgeBase } from '../../lib/services/vector.service.js';
+import { queryKnowledgeBase } from '../../lib/services/chromadb.service.js';
 import { generateAnalysis as geminiGenerate } from '../../lib/services/gemini.service.js';
-import * as logger from '../../lib/utils/logger.js'; // Importato il logger unificato
+import * as logger from '../../lib/utils/logger.js';
 
 const SPECIES_RULES = {
     spigola: { name: 'Spigola (Dicentrarchus labrax)', optimalTemp: { min: 12, max: 20 }, optimalWind: { min: 5, max: 20 }, optimalWave: { min: 0.5, max: 1.5 }, techniques: ['spinning', 'surfcasting', 'bolognese'], lures: ['minnow', 'ondulante', 'grub', 'verme coreano'], hotspots: ['foci', 'scogliere', 'moli'], season: ['autunno', 'inverno', 'primavera'] },
@@ -26,21 +26,17 @@ export async function recommendForSpecies({ species, weatherData, location }) {
         const compatibility = assessCompatibility(weatherData, speciesRules);
         logger.log(`[MCP Species] 📊 Compatibilità: ${compatibility.score}/100`);
         
-        // === STEP 3: RAG con RE-RANKING - Cerca conoscenza specifica per la specie ===
         logger.log(`[MCP Species] 🔍 Eseguo query RAG per specie: ${speciesKey} con re-ranking attivato...`);
-        // Query semplificata per massimizzare la rilevanza RAG
         const kbQuery = `pesca ${speciesKey} tecniche esche spot consigli per ${location}`; 
 
         const relevantDocs = await queryKnowledgeBase(kbQuery, {
-            topK: 4,        // Vogliamo 4 documenti finali, i più pertinenti.
+            topK: 4,
             filters: { species: [speciesKey] },
-            useReranking: true,   // 🔥 ATTIVA IL RE-RANKING DI PRECISIONE
-            rerankTopK: 10        // Recupera 10 candidati specifici per la specie.
+            useReranking: true,
+            rerankTopK: 10
         });
         
         logger.log(`[MCP Species] 📚 Trovati ${relevantDocs.length} documenti KB`);
-
-        // Utilizziamo solo il campo 'content' dal risultato aggiornato di queryKnowledgeBase
         const docsForPrompt = relevantDocs.map(d => d.content);
         logger.log(`[MCP Species] 📖 Utilizzati ${docsForPrompt.length} contesti arricchiti per il prompt.`);
 
@@ -65,26 +61,19 @@ function assessCompatibility(weatherData, rules) {
     const warnings = [];
     const advantages = [];
     
-    // SAFE DEFAULTS - usa dati aggregati se hourly non disponibile
     let waterTemp, windSpeed, waveHeight;
-
     const hourlyData = weatherData.hourly || [];
     if (hourlyData.length > 0) {
-        // Calcola le medie dai dati orari se disponibili (comportamento originale)
         waterTemp = hourlyData.reduce((sum, h) => sum + h.waterTemperature, 0) / hourlyData.length;
-        // La velocità del vento viene convertita in km/h se i dati orari sono disponibili
         windSpeed = hourlyData.reduce((sum, h) => sum + h.windSpeedKn * 1.852, 0) / hourlyData.length;
         waveHeight = hourlyData.reduce((sum, h) => sum + h.waveHeight, 0) / hourlyData.length;
     } else {
-        // Fallback ai dati aggregati come richiesto
         waterTemp = weatherData.seaTemp || weatherData.avgTemp || 18;
         windSpeed = weatherData.dailyWindSpeedKn || weatherData.wind?.speed || weatherData.avgWind || 10;
         waveHeight = weatherData.sea?.waveHeight || weatherData.avgWave || 0.5;
-        
-        warnings.push('Valutazione basata su dati aggregati/di fallback anziché orari dettagliati.');
+        warnings.push('Valutazione basata su dati aggregati/di fallback.');
     }
     
-    // Valutazione Temperatura Acqua
     if (waterTemp < rules.optimalTemp.min || waterTemp > rules.optimalTemp.max) { 
         score -= 20; 
         warnings.push(`Temperatura acqua ${waterTemp.toFixed(1)}°C fuori range (${rules.optimalTemp.min}-${rules.optimalTemp.max}°C)`); 
@@ -92,7 +81,6 @@ function assessCompatibility(weatherData, rules) {
         advantages.push(`Temperatura acqua ottimale: ${waterTemp.toFixed(1)}°C`); 
     }
 
-    // Valutazione Vento (Assumendo che windSpeed sia in km/h o nodi compatibili con le regole)
     if (windSpeed < rules.optimalWind.min || windSpeed > rules.optimalWind.max) { 
         score -= 15; 
         warnings.push(`Vento ${windSpeed.toFixed(1)}km/h non ideale (${rules.optimalWind.min}-${rules.optimalWind.max}km/h)`); 
@@ -100,7 +88,6 @@ function assessCompatibility(weatherData, rules) {
         advantages.push(`Vento favorevole: ${windSpeed.toFixed(1)}km/h`); 
     }
 
-    // Valutazione Mare
     if (waveHeight < rules.optimalWave.min || waveHeight > rules.optimalWave.max) { 
         score -= 15; 
         warnings.push(`Mare ${waveHeight.toFixed(1)}m non ottimale (${rules.optimalWave.min}-${rules.optimalWave.max}m)`); 
@@ -117,9 +104,7 @@ function assessCompatibility(weatherData, rules) {
 }
 
 function buildSpeciesPrompt(species, rules, weatherData, location, compatibility, relevantDocs) {
-    // Sostituito il calcolo con il fallback come richiesto.
     const waterTemp = weatherData.seaTemp || weatherData.avgTemp || 18;
-
     return `
 # Raccomandazioni Pesca: ${rules.name} a ${location}
 ## Compatibilità Condizioni: ${compatibility.level.toUpperCase()} (${compatibility.score}/100)
@@ -150,7 +135,6 @@ Stile: Pratico, diretto. Usa Markdown.
 
 async function generateGenericSpeciesRecommendation(species, weatherData, location) {
     const speciesKey = species.toLowerCase().trim();
-    // Uso il nuovo formato queryKnowledgeBase con filtri e re-ranking
     const kbQuery = `pesca ${speciesKey} tecniche esche`;
     const relevantDocs = await queryKnowledgeBase(kbQuery, {
         topK: 3,
@@ -159,7 +143,6 @@ async function generateGenericSpeciesRecommendation(species, weatherData, locati
         rerankTopK: 10
     });
     
-    // Uso d.content per estrarre il testo dal nuovo formato
     const docsForPrompt = relevantDocs.map(d => d.content);
 
     const prompt = `
