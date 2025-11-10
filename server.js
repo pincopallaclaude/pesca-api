@@ -48,6 +48,7 @@ async function start() {
         const { analysisCache } = await import('./lib/utils/cache.manager.js');
         const { initializeChromaDB } = await import('./lib/services/chromadb.service.js');
         const { mcpClient } = await import('./lib/services/mcp-client.service.js');
+        const { migrateKnowledgeBase } = await import('./tools/migrate-to-chromadb.js'); // <-- NUOVO IMPORT
         
         // Handler API
         const { default: autocompleteHandler } = await import('./api/autocomplete.js');
@@ -62,9 +63,45 @@ async function start() {
         
         // 1. Inizializzazione ChromaDB (potrebbe richiedere tempo o retry)
         initializeChromaDB()
-            .then(() => {
+            .then(async () => { // <-- Reso asincrono per l'await di axios e migrateKnowledgeBase
                 serviceStatus.ChromaDB = 'ready';
                 logger.log("[BACKGROUND] ✅ ChromaDB pronto.");
+
+                // --- INIZIO LOGICA DI MIGRAZIONE INTEGRATA ---
+                try {
+                    logger.log('[MIGRATE] Avvio controllo migrazione DB...');
+                    // Importazione locale di axios necessaria dato che siamo in un contesto asincrono
+                    const { default: axios } = await import('axios'); 
+                    const CHROMA_API_URL = 'http://127.0.0.1:8001/api/v1';
+                    const COLLECTION_NAME = process.env.CHROMA_COLLECTION || 'fishing_knowledge';
+                    
+                    const collections = await axios.get(`${CHROMA_API_URL}/collections`);
+                    const collection = collections.data.find(c => c.name === COLLECTION_NAME);
+
+                    if (collection) {
+                        const countResponse = await axios.get(`${CHROMA_API_URL}/collections/${collection.id}/count`);
+                        const documentCount = countResponse.data;
+                        logger.log(`[MIGRATE] Documenti trovati: ${documentCount}`);
+                        if (documentCount === 0) {
+                            logger.warn('[MIGRATE] ⚠️ Database vuoto! Avvio migrazione...');
+                            await migrateKnowledgeBase();
+                            logger.log('[MIGRATE] ✅ Migrazione completata con successo.');
+                        } else {
+                            logger.log('[MIGRATE] ✅ Database già popolato. Salto la migrazione.');
+                        }
+                    } else {
+                        // Se la collection non esiste, la migrazione la creerà
+                        logger.warn('[MIGRATE] ⚠️ Collection non trovata! Avvio migrazione per crearla e popolarla...');
+                        await migrateKnowledgeBase();
+                        logger.log('[MIGRATE] ✅ Migrazione (creazione + popolamento) completata con successo.');
+                    }
+                } catch (migrationError) {
+                    logger.error(`[MIGRATE] ❌ Errore durante il controllo/migrazione del DB: ${migrationError.message}`);
+                    // Non impostiamo lo stato su 'failed' qui, perché ChromaDB è comunque accessibile.
+                    // Il problema è solo la popolazione dei dati.
+                }
+                // --- FINE LOGICA DI MIGRAZIONE INTEGRATA ---
+
                 checkServicesReady();
             })
             .catch(err => {
@@ -98,7 +135,7 @@ async function start() {
         app.get('/', (req, res) => res.status(200).send('Pesca API Server is running!'));
 
         // =========================================================================
-        // --- NUOVO ENDPOINT DI DIAGNOSTICA (Admin) ---
+        // --- ENDPOINT DI DIAGNOSTICA (Admin) ---
         // =========================================================================
         app.get('/admin/inspect-db', async (req, res) => {
             // Aggiungiamo una protezione base con un "secret"
