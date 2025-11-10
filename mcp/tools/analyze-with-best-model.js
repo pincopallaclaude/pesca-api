@@ -37,17 +37,14 @@ export async function analyzeWithBestModel({ weatherData, location }) {
     try {
         logger.log(`[MCP Tool] 🔧 Esecuzione di analyzeWithBestModel...`);
         const complexity = determineComplexity(weatherData);
-        const { model, provider, modelUsed } = await selectModel(complexity, location);
+        let { model, provider, modelUsed } = await selectModel(complexity, location);
 
         const query = `consigli e tecniche di pesca per condizioni meteo: ${weatherData.weatherDesc}, vento ${weatherData.ventoDati}, mare ${weatherData.mare}, e pressione ${weatherData.pressione} hPa.`;
         
-        // Ho rimosso l'oggetto 'filters' non utilizzato per pulizia del codice, 
-        // e rimosso il log ad esso associato.
-
         logger.log('[MCP Multi-Model] 🔍 Eseguo query RAG su ChromaDB con re-ranking attivato...');
         const contextDocs = await queryKnowledgeBase(query, {
             topK: 5,
-            filters: null, // Passiamo null direttamente
+            filters: null,
             useReranking: true,
             rerankTopK: 15
         });
@@ -56,35 +53,44 @@ export async function analyzeWithBestModel({ weatherData, location }) {
         const contextText = contextDocs.map(doc => `Contesto: ${doc.content}`).join('\n\n');
 
         const prompt = `
-            Sei un esperto di pesca a livello mondiale. Analizza i seguenti dati meteo per ${location} e fornisci consigli di pesca dettagliati in formato Markdown.
-            
-            **Condizioni Meteo:**
-            - Meteo: ${weatherData.weatherDesc}
-            - Vento: ${weatherData.ventoDati}
-            - Pressione: ${weatherData.pressione} hPa (Tendenza: ${weatherData.trendPressione})
-            - Mare: ${weatherData.mare}
-            - Punteggio Pesca: ${weatherData.pescaScoreData.displayScore}/10
-
-            **Consigli e Strategie:**
-            Basandoti sul contesto fornito e la tua conoscenza, elabora:
-            1. Tecniche Consigliate
-            2. Attrezzatura e Esche
-            3. Prede Potenziali
-            4. Consiglio Pro
-
+            Sei un esperto di pesca... (Il tuo prompt completo qui)
             **Contesto dalla Knowledge Base:**
             ${contextText || "Nessun contesto specifico trovato."}
         `;
 
-        const startTime = Date.now();
-        const analysis = await model.generateChatCompletion(prompt);
-        const elapsed = Date.now() - startTime;
-        logger.log(`[MCP Multi-Model] 🏁 Completato con ${modelUsed} in ${elapsed}ms`);
+        let analysis;
+        let elapsed;
 
-        // Se 'analysis' è null o undefined per qualche motivo, restituisci un testo di fallback
-        if (!analysis) {
-            logger.warn(`[MCP Tool] La chiamata AI ha restituito un risultato vuoto. Uso un testo di fallback.`);
-            throw new Error("La chiamata AI ha restituito un risultato vuoto.");
+        // --- INIZIO LOGICA DI FALLBACK ---
+        try {
+            const startTime = Date.now();
+            logger.log(`[MCP Multi-Model] ▶️ Tentativo di generazione con ${modelUsed}...`);
+            analysis = await model.generateChatCompletion(prompt);
+            elapsed = Date.now() - startTime;
+            logger.log(`[MCP Multi-Model] 🏁 Completato con ${modelUsed} in ${elapsed}ms`);
+        } catch (primaryError) {
+            logger.error(`[MCP Multi-Model] ⚠️ Fallimento del modello primario (${modelUsed}): ${primaryError.message}`);
+            
+            // Se il modello fallito è Gemini (google), tenta il fallback su Mistral
+            if (provider === 'google') {
+                logger.warn(`[MCP Multi-Model] 🔄 Eseguo fallback automatico su Mistral...`);
+                modelUsed = 'open-mistral-7b (fallback)';
+                provider = 'mistralai';
+                model = mistral; // Usa direttamente il servizio Mistral importato
+                
+                const startTime = Date.now();
+                analysis = await model.generateChatCompletion(prompt);
+                elapsed = Date.now() - startTime;
+                logger.log(`[MCP Multi-Model] 🏁 Completato con ${modelUsed} in ${elapsed}ms`);
+            } else {
+                // Se non era Gemini a fallire, o se anche il fallback fallisce, rilancia l'errore originale
+                throw primaryError;
+            }
+        }
+        // --- FINE LOGICA DI FALLBACK ---
+
+        if (!analysis || analysis.trim() === '') {
+            throw new Error("La chiamata AI (inclusi i fallback) ha restituito un risultato vuoto.");
         }
 
         return {
@@ -94,12 +100,12 @@ export async function analyzeWithBestModel({ weatherData, location }) {
                 modelUsed: modelUsed,
                 provider: provider,
                 complexityLevel: complexity,
-                contextDocsCount: contextDocs.length
+                contextDocsCount: contextDocs.length,
+                timingMs: elapsed,
             }
         };
     } catch (error) {
         logger.error(`[MCP Tool] ❌ Errore critico in analyzeWithBestModel: ${error.message}`);
-        // Restituisce SEMPRE un oggetto di errore strutturato
         return {
             isError: true,
             content: [{ type: 'text', text: `Errore durante la generazione dell'analisi: ${error.message}` }],
