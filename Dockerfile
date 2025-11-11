@@ -16,7 +16,13 @@ RUN npm ci --only=production
 
 COPY . .
 
+# Crea le directory necessarie per i dati persistenti
+# Questo assicura che esistano anche se il disco è vuoto alla prima esecuzione
+RUN mkdir -p /data/memory /data/chroma /data/ml
+
 EXPOSE 10000
 
-# Il comando di avvio torna a essere quello semplice, senza flag extra
-CMD ["/bin/sh", "-c", "uvicorn chromadb.app:app --host 127.0.0.1 --port 8001 --log-level=warning & sleep 15 && exec node server.js"]
+# Rendi lo script di avvio eseguibile e impostalo come comando di default
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+CMD ["/app/start.sh"]

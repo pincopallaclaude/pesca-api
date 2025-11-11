@@ -1,0 +1,58 @@
+name: Train ML Model
+
+on:
+  schedule:
+    # Ogni 1° del mese alle 2 AM UTC
+    - cron: '0 2 1 * *'
+  workflow_dispatch: # Trigger manuale
+
+jobs:
+  train-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install numpy pandas scikit-learn onnx onnxruntime tf2onnx tensorflow
+      
+      - name: Download training data from API
+        run: |
+          # Scarica gli episodi dal backend per training
+          curl -H "Authorization: Bearer ${{ secrets.ADMIN_TOKEN }}" \
+               https://your-app.onrender.com/api/admin/export-episodes \
+               -o training_data.json
+      
+      - name: Train model
+        run: python tools/train_model.py
+        env:
+          DATA_FILE: training_data.json
+          OUTPUT_DIR: ./models
+      
+      - name: Convert to ONNX
+        run: python tools/convert_to_onnx.py
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: model-v${{ github.run_number }}
+          name: ML Model v${{ github.run_number }}
+          files: |
+            models/pesca_model.onnx
+            models/scaler.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Notify Render to reload model
+        run: |
+          curl -X POST https://your-app.onrender.com/api/admin/reload-ml-model \
+               -H "Authorization: Bearer ${{ secrets.ADMIN_TOKEN }}"
+permissions:
+  contents: write               

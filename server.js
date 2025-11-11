@@ -15,8 +15,8 @@ app.use(express.json());
 
 // Inizializza una variabile per tenere traccia dello stato di prontezza dei servizi critici
 let servicesReady = false; 
-const CRITICAL_SERVICES = ['ChromaDB', 'MCP'];
-const serviceStatus = { ChromaDB: 'initializing', MCP: 'initializing' };
+const CRITICAL_SERVICES = ['MemoryEngine', 'MCP'];
+const serviceStatus = { MemoryEngine: 'initializing', MCP: 'initializing' };
 
 
 // Health check primario: risponde subito con 200/ok a Render/Kubernetes
@@ -26,7 +26,7 @@ app.get('/health', (req, res) => {
         logger.warn('[HEALTH] Server non completamente pronto, restituisco 503.');
         return res.status(503).json({ 
             status: 'initializing', 
-            message: 'Attendo l\'inizializzazione dei servizi critici (ChromaDB, MCP).',
+            message: 'Attendo l\'inizializzazione dei servizi critici (MemoryEngine, MCP).',
             details: serviceStatus,
             timestamp: new Date().toISOString() 
         });
@@ -46,9 +46,9 @@ async function start() {
         // Importazioni di moduli core e servizi
         const { fetchAndProcessForecast, POSILLIPO_COORDS } = await import('./lib/forecast-logic.js');
         const { analysisCache } = await import('./lib/utils/cache.manager.js');
-        const { initializeChromaDB } = await import('./lib/services/chromadb.service.js');
+        const { initializeMemory } = await import('./lib/db/memory.engine.js'); // SOSTITUITO
         const { mcpClient } = await import('./lib/services/mcp-client.service.js');
-        const { migrateKnowledgeBase } = await import('./tools/migrate-to-chromadb.js'); // <-- NUOVO IMPORT
+        const { migrateKnowledgeBase } = await import('./tools/migrate-to-chromadb.js');
         
         // Handler API
         const { default: autocompleteHandler } = await import('./api/autocomplete.js');
@@ -56,57 +56,27 @@ async function start() {
         const { default: analyzeDayFallbackModule } = await import('./api/analyze-day-fallback.js');
         const { default: queryNaturalLanguage } = await import('./api/query-natural-language.js');
         const { default: recommendSpecies } = await import('./api/recommend-species.js');
+        const { default: memoryHealthHandler } = await import('./api/memory-health.js'); // AGGIUNGI QUESTO
+        const { default: submitFeedbackHandler } = await import('./api/submit-feedback.js'); // AGGIUNGI QUESTO
+        const { default: cleanupMemoryHandler } = await import('./api/admin/cleanup-memory.js'); // AGGIUNGI QUESTO
         
         console.log('--- [SERVER BOOT] Moduli principali importati ---');
 
         // --- INIZIALIZZAZIONE DEI SERVIZI IN BACKGROUND (Non-Blocking) ---
         
-        // 1. Inizializzazione ChromaDB (potrebbe richiedere tempo o retry)
-        initializeChromaDB()
-            .then(async () => { // <-- Reso asincrono per l'await di axios e migrateKnowledgeBase
-                serviceStatus.ChromaDB = 'ready';
-                logger.log("[BACKGROUND] ✅ ChromaDB pronto.");
-
-                // --- INIZIO LOGICA DI MIGRAZIONE INTEGRATA ---
-                try {
-                    logger.log('[MIGRATE] Avvio controllo migrazione DB...');
-                    // Importazione locale di axios necessaria dato che siamo in un contesto asincrono
-                    const { default: axios } = await import('axios'); 
-                    const CHROMA_API_URL = 'http://127.0.0.1:8001/api/v1';
-                    const COLLECTION_NAME = process.env.CHROMA_COLLECTION || 'fishing_knowledge';
-                    
-                    const collections = await axios.get(`${CHROMA_API_URL}/collections`);
-                    const collection = collections.data.find(c => c.name === COLLECTION_NAME);
-
-                    if (collection) {
-                        const countResponse = await axios.get(`${CHROMA_API_URL}/collections/${collection.id}/count`);
-                        const documentCount = countResponse.data;
-                        logger.log(`[MIGRATE] Documenti trovati: ${documentCount}`);
-                        if (documentCount === 0) {
-                            logger.warn('[MIGRATE] ⚠️ Database vuoto! Avvio migrazione...');
-                            await migrateKnowledgeBase();
-                            logger.log('[MIGRATE] ✅ Migrazione completata con successo.');
-                        } else {
-                            logger.log('[MIGRATE] ✅ Database già popolato. Salto la migrazione.');
-                        }
-                    } else {
-                        // Se la collection non esiste, la migrazione la creerà
-                        logger.warn('[MIGRATE] ⚠️ Collection non trovata! Avvio migrazione per crearla e popolarla...');
-                        await migrateKnowledgeBase();
-                        logger.log('[MIGRATE] ✅ Migrazione (creazione + popolamento) completata con successo.');
-                    }
-                } catch (migrationError) {
-                    logger.error(`[MIGRATE] ❌ Errore durante il controllo/migrazione del DB: ${migrationError.message}`);
-                    // Non impostiamo lo stato su 'failed' qui, perché ChromaDB è comunque accessibile.
-                    // Il problema è solo la popolazione dei dati.
-                }
-                // --- FINE LOGICA DI MIGRAZIONE INTEGRATA ---
-
+        // 1. Inizializzazione del nuovo Hybrid Memory Engine
+        initializeMemory()
+            .then(() => {
+                serviceStatus.MemoryEngine = 'ready';
+                logger.log("[BACKGROUND] ✅ Hybrid Memory Engine (SQLite + ChromaDB) pronto.");
+                
+                // Qui in futuro potremmo aggiungere la migrazione della KB statica
+                
                 checkServicesReady();
             })
             .catch(err => {
-                serviceStatus.ChromaDB = 'failed';
-                logger.error("[BACKGROUND] ❌ Inizializzazione ChromaDB fallita:", err.message);
+                serviceStatus.MemoryEngine = 'failed';
+                logger.error("[BACKGROUND] ❌ Inizializzazione Memory Engine fallita:", err.message);
             });
 
         // 2. Connessione MCP client (Ora è un mock locale e quasi istantaneo)
@@ -123,7 +93,7 @@ async function start() {
             });
 
         function checkServicesReady() {
-            if (serviceStatus.ChromaDB === 'ready' && serviceStatus.MCP === 'ready') {
+            if (serviceStatus.MemoryEngine === 'ready' && serviceStatus.MCP === 'ready') {
                 servicesReady = true;
                 logger.log('[SERVER STARTUP] 🏁 Tutti i servizi critici sono ora pronti.');
             }
@@ -189,7 +159,10 @@ async function start() {
                 res.status(500).json({ error: error.message, details: error.response ? error.response.data : null });
             }
         });
-        // --- FINE ENDPOINT DI DIAGNOSTICA ---
+
+        // --- Endpoint di diagnostica per la memoria ---
+        app.get('/api/admin/memory-health', memoryHealthHandler);
+        app.get('/api/admin/cleanup-memory', cleanupMemoryHandler);
 
 
         // Route principale per i dati meteo
@@ -274,6 +247,7 @@ async function start() {
         // Advanced AI Features (RAG e Raccomandazioni)
         app.post('/api/query', queryNaturalLanguage);
         app.post('/api/recommend-species', recommendSpecies);
+        app.post('/api/submit-feedback', submitFeedbackHandler);
 
         // Avvia Express
         const PORT = process.env.PORT || 10000;
