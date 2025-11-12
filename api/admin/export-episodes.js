@@ -32,7 +32,7 @@ export default async function exportEpisodesHandler(req, res) {
       ORDER BY created_at DESC
     `).all();
     
-    logger.info(`[Admin] Exported ${episodes.length} episodes for training`);
+    logger.log(`[Admin] Exported ${episodes.length} episodes for training`);
     
     return res.status(200).json({
       episodes: episodes,

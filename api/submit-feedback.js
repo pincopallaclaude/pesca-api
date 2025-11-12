@@ -50,7 +50,7 @@ export default async function submitFeedbackHandler(req, res) {
       outcome: outcome || null
     });
     
-    logger.info(`[Feedback] User feedback received: ${userFeedback}/5 for session ${sessionId}`);
+    logger.log(`[Feedback] User feedback received: ${userFeedback}/5 for session ${sessionId}`);
     
     return res.status(200).json({
       success: true,

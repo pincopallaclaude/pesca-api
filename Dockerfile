@@ -17,10 +17,6 @@ RUN npm ci --only=production
 # FORCE-RELOAD
 COPY . .
 
-# Crea le directory necessarie per i dati persistenti
-# Questo assicura che esistano anche se il disco è vuoto alla prima esecuzione
-RUN mkdir -p /data/memory /data/chroma /data/ml
-
 EXPOSE 10000
 
 # Rendi lo script di avvio eseguibile e impostalo come comando di default

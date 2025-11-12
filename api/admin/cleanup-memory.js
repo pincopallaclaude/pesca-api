@@ -19,7 +19,7 @@ export default async function cleanupMemoryHandler(req, res) {
   }
   
   try {
-    logger.info('[Admin] Starting memory cleanup policy...');
+    logger.log('[Admin] Starting memory cleanup policy...');
     
     const result = await runCleanupPolicy();
     
