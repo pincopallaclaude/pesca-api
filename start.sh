@@ -1,22 +1,12 @@
 #!/bin/sh
 set -e
 
-echo "--- [STARTUP SCRIPT] Avvio del container..."
+echo "--- [STARTUP SCRIPT] Avvio del server ChromaDB in background..."
+# Avvia ChromaDB come server, salvando i dati sul disco persistente
+chroma run --host 0.0.0.0 --port 8001 --path /data/chroma &
 
-# Verifica e crea le directory se non esistono (doppio controllo per robustezza)
-echo "--- [STARTUP SCRIPT] Verifica delle directory dati..."
-mkdir -p /data/memory
-mkdir -p /data/chroma
-mkdir -p /data/ml
-echo "--- [STARTUP SCRIPT] Directory verificate."
-
-# Non è più necessario avviare ChromaDB come server separato.
-# La nostra libreria `chromadb` in Node.js lo gestirà in-process,
-# scrivendo i file direttamente nel percorso /data/chroma.
+echo "--- [STARTUP SCRIPT] Attesa di 5 secondi per l'avvio di ChromaDB..."
+sleep 5
 
 echo "--- [STARTUP SCRIPT] Avvio dell'applicazione Node.js..."
-# Avvia Node.js in foreground, che ora gestisce tutto.
 exec node server.js
-
-
-# FORCE-RELOAD
