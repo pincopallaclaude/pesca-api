@@ -7,7 +7,7 @@
  */
 
 import { runCleanupPolicy } from '../lib/db/memory.engine.js';
-import logger from '../lib/utils/logger.js';
+import * as logger from '../../lib/utils/logger.js'; // CORREZIONE LOGGER
 
 export default async function cleanupMemoryHandler(req, res) {
   // Autenticazione
