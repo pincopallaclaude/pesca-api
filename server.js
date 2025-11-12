@@ -46,7 +46,7 @@ async function start() {
         // Importazioni di moduli core e servizi
         const { fetchAndProcessForecast, POSILLIPO_COORDS } = await import('./lib/forecast-logic.js');
         const { analysisCache } = await import('./lib/utils/cache.manager.js');
-        const { initializeMemory } = await import('./lib/db/memory.engine.js'); // SOSTITUITO
+        const { initMemoryEngine } = await import('#lib/db/memory.engine.js');
         const { mcpClient } = await import('./lib/services/mcp-client.service.js');
         const { migrateKnowledgeBase } = await import('./tools/migrate-to-chromadb.js');
         
@@ -65,7 +65,7 @@ async function start() {
         // --- INIZIALIZZAZIONE DEI SERVIZI IN BACKGROUND (Non-Blocking) ---
         
         // 1. Inizializzazione del nuovo Hybrid Memory Engine
-        initializeMemory()
+        initMemoryEngine()
             .then(() => {
                 serviceStatus.MemoryEngine = 'ready';
                 logger.log("[BACKGROUND] ✅ Hybrid Memory Engine (SQLite + ChromaDB) pronto.");
