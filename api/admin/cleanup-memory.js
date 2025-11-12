@@ -1,4 +1,3 @@
-// FORCE-RELOAD` in cima al file.
 // /api/admin/cleanup-memory.js
 
 /**
@@ -7,8 +6,8 @@
  * Esegue la policy di cleanup per mantenere DB sotto 1GB
  */
 
-import { runCleanupPolicy } from '../lib/db/memory.engine.js';
-import * as logger from '../../lib/utils/logger.js'; // FORCE-RELOAD` in cima al file.
+import { runCleanupPolicy } from '#lib/db/memory.engine.js';
+import * as logger from '#lib/utils/logger.js';
 
 export default async function cleanupMemoryHandler(req, res) {
   // Autenticazione

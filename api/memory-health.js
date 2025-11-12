@@ -6,8 +6,8 @@
  * Restituisce lo stato del sistema di memoria
  */
 
-import { getMemoryHealth } from '../lib/db/memory.engine.js';
-import * as logger from '../lib/utils/logger.js'; // CORREZIONE
+import { getMemoryHealth } from '#lib/db/memory.engine.js';
+import * as logger from '#lib/utils/logger.js';
 
 export default async function memoryHealthHandler(req, res) {
   try {

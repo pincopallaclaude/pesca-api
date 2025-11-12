@@ -2,6 +2,11 @@
   "name": "pesca-api",
   "version": "2.0.0-MCP",
   "type": "module",
+  "imports": {
+    "#lib/*": "./lib/*",
+    "#api/*": "./api/*",
+    "#tools/*": "./tools/*"
+  },
   "description": "Backend API for Meteo Pesca with MCP-enhanced RAG",
   "main": "server.js",
   "directories": {
