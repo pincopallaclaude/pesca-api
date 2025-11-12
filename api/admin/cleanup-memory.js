@@ -1,3 +1,4 @@
+// FORCE-RELOAD` in cima al file.
 // /api/admin/cleanup-memory.js
 
 /**
