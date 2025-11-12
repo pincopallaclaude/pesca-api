@@ -108,23 +108,22 @@ async function start() {
         // --- ENDPOINT DI DIAGNOSTICA (Admin) ---
         // =========================================================================
         app.get('/admin/inspect-db', async (req, res) => {
-            // Aggiungiamo una protezione base con un "secret"
+            // Protezione (invariata)
             if (req.query.secret !== (process.env.ADMIN_SECRET || 'supersecret')) {
                 return res.status(401).send('Unauthorized');
             }
 
-            console.log('[Admin] Eseguo ispezione del database...');
+            logger.log('[Admin] Eseguo ispezione del database via API...');
             try {
-                // Importazione locale di axios, dato che è un'importazione asincrona globale
-                const { default: axios } = await import('axios');
                 const CHROMA_API_URL = 'http://127.0.0.1:8001/api/v1';
-                const COLLECTION_NAME = process.env.CHROMA_COLLECTION || 'fishing_knowledge';
+                // Usiamo la collection degli episodi, che è quella che ci interessa ora
+                const COLLECTION_NAME = 'fishing_episodes'; 
 
                 let inspectionResult = {};
 
                 // 1. Lista tutte le collection
-                const collections = await axios.get(`${CHROMA_API_URL}/collections`);
-                const collection = collections.data.find(c => c.name === COLLECTION_NAME);
+                const collectionsResponse = await axios.get(`${CHROMA_API_URL}/collections`);
+                const collection = collectionsResponse.data.find(c => c.name === COLLECTION_NAME);
 
                 if (!collection) {
                     inspectionResult.error = `Collection "${COLLECTION_NAME}" non trovata.`;
@@ -139,9 +138,9 @@ async function start() {
                 inspectionResult.documentCount = countResponse.data;
 
                 // 3. Recupera un campione di documenti se presenti
-                if (countResponse.data > 0) {
+                if (inspectionResult.documentCount > 0) {
                     const getResponse = await axios.post(`${CHROMA_API_URL}/collections/${collection.id}/get`, { 
-                        limit: 10, 
+                        limit: 5, 
                         include: ["metadatas", "documents"] 
                     });
                     inspectionResult.sampleDocuments = getResponse.data.documents;
@@ -151,12 +150,14 @@ async function start() {
                     inspectionResult.sampleMetadatas = [];
                 }
                 
-                console.log('[Admin] Ispezione completata.');
+                logger.log('[Admin] Ispezione completata.');
                 res.json(inspectionResult);
 
             } catch (error) {
-                console.error('[Admin] Errore durante ispezione:', error.response ? error.response.data : error.message);
-                res.status(500).json({ error: error.message, details: error.response ? error.response.data : null });
+                // Gestione errore robusta per evitare crash
+                const errorMessage = error.response ? error.response.data : error.message;
+                logger.error('[Admin] Errore durante ispezione:', errorMessage);
+                res.status(500).json({ error: 'Errore durante ispezione', details: errorMessage });
             }
         });
 
