@@ -17,3 +17,6 @@ echo "--- [STARTUP SCRIPT] Directory verificate."
 echo "--- [STARTUP SCRIPT] Avvio dell'applicazione Node.js..."
 # Avvia Node.js in foreground, che ora gestisce tutto.
 exec node server.js
+
+
+# FORCE-RELOAD

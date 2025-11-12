@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y python3 python3-pip curl wget && \
 COPY package.json package-lock.json ./
 RUN npm ci --only=production
 
+# FORCE-RELOAD
 COPY . .
 
 # Crea le directory necessarie per i dati persistenti
