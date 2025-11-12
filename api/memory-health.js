@@ -1,4 +1,5 @@
 // /api/memory-health.js
+
 /**
  * Memory Health Endpoint
  * GET /api/memory-health
@@ -6,7 +7,7 @@
  */
 
 import { getMemoryHealth } from '../lib/db/memory.engine.js';
-import logger from '../lib/utils/logger.js';
+import * as logger from '../lib/utils/logger.js'; // CORREZIONE
 
 export default async function memoryHealthHandler(req, res) {
   try {
