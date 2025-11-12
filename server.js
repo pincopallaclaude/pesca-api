@@ -4,6 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
 import * as logger from './lib/utils/logger.js';
+import axios from 'axios';
 
 console.log('--- [SERVER BOOT] Entry point server.js caricato ---');
 console.log('[SERVER BOOT] 📦 Tentativo di avvio rapido...');
