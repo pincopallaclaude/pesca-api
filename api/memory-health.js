@@ -13,7 +13,7 @@ export default async function memoryHealthHandler(req, res) {
   try {
     const health = getMemoryHealth();
     
-    logger.debug('[API] Memory health check requested');
+    logger.log('[API] Memory health check requested');
     
     return res.status(200).json({
       status: 'healthy',
